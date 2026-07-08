@@ -1,0 +1,42 @@
+[project]
+name = "agent-repair-search"
+version = "0.1.0"
+description = "Reproducible optimizer-backed repair search for tool-using agents."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [
+  { name = "Yash Thapliyal" }
+]
+dependencies = [
+  "anthropic>=0.49,<1.0",
+]
+
+[project.scripts]
+agent-repair = "agent_repair.cli:main"
+
+[dependency-groups]
+dev = [
+  "pytest>=8.3,<9.0",
+  "ruff>=0.9,<1.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+  "live: tests that require live Anthropic credentials",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agent_repair"]
