@@ -1,6 +1,7 @@
 {
   "scenario_id": "subscription_billing_ambiguity",
-  "version": "1.0",
+  "version": "1.1",
+  "baseline_prompt_note": "v1.1 revised the baseline system_prompt (an editable artifact, not final data) to state the customer is already identified, removing a search-first artifact observed in baseline characterization. Eval splits and their hashes are unchanged from v1.0; heldout and regression_final remain frozen and uninspected.",
   "description": "Harder single-step tool-calling scenario with 10 overlapping subscription/billing tools. Target failure family: subscription termination or renewal requests that also carry monetary or prior-charge language, which the baseline tends to misroute toward refund/dispute or to confuse among cancel / disable_auto_renew / pause.",
   "task_role": "main_candidate",
   "editable_surfaces": ["system_prompt", "tool_descriptions"],
