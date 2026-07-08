@@ -1,0 +1,25 @@
+{
+  "asi_verified": true,
+  "baseline_target_failure_present": false,
+  "best_candidate_differs_from_seed": "unknown (no viable-scenario live search run this pass)",
+  "code_committed": true,
+  "development_headroom_present": false,
+  "final_regression_consumed": false,
+  "gating_reasons": [
+    "baseline too easy: cancel_refund_sanity target TSA 1.000 (TARGET_FAILURE_ABSENT)",
+    "baseline too easy: subscription_billing_ambiguity v1.1 target TSA 0.944, overall 0.946 (TOO_EASY)",
+    "no scenario classified VIABLE_FOCUSED_REPAIR for claude-haiku-4-5-20251001",
+    "development headroom for the seeded target failure is insufficient"
+  ],
+  "gepa_actual": "gepa (verified in prior live smoke and offline adapter tests)",
+  "heldout_consumed": false,
+  "non_seed_candidate_explored": "verified offline (adapter test); not re-run live this pass",
+  "non_target_competence_present": true,
+  "not_benchmark_evidence": true,
+  "proposal_lifecycle_auditable": true,
+  "ready_for_final_benchmark": false,
+  "scenario_frozen_before_search": true,
+  "scenario_version": null,
+  "search_budget_recorded": true,
+  "selected_scenario": null
+}

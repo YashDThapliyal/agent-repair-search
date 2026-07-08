@@ -1,0 +1,35 @@
+{
+  "basis": "baseline development characterization only (optimize_train + optimize_val + regression_dev)",
+  "decision": "No scenario qualifies as VIABLE_FOCUSED_REPAIR for claude-haiku-4-5-20251001. Both are too easy under a correct forced-tool-call harness. Neither is promoted to a main research benchmark for this task model.",
+  "harness": "forced tool_choice=any (single-step tool router)",
+  "scenarios": {
+    "cancel_refund_sanity": {
+      "argument_accuracy": 0.9194,
+      "classification": "TARGET_FAILURE_ABSENT",
+      "non_target_tsa": 0.9091,
+      "overall_score": 0.9435,
+      "reason": "target slice TSA 1.000 shows no seeded failures for this task model",
+      "role": "smoke/tutorial/integration",
+      "target_slice": "target_cancel_billing",
+      "target_slice_cases": 40,
+      "target_slice_tsa": 1.0,
+      "tool_selection_accuracy": 0.9677
+    },
+    "subscription_billing_ambiguity": {
+      "argument_accuracy": 0.9459,
+      "classification": "TOO_EASY",
+      "non_target_tsa": 0.9474,
+      "overall_score": 0.9459,
+      "reason": "target slice TSA 0.944 > 0.90; insufficient repair headroom",
+      "role": "harder candidate; still not viable for this task model",
+      "scenario_version": "1.1",
+      "target_slice": "target_stop_with_money",
+      "target_slice_cases": 36,
+      "target_slice_tsa": 0.9444444444444444,
+      "tool_selection_accuracy": 0.9459
+    }
+  },
+  "selected_main_scenario": null,
+  "selection_used_optimizer_outcomes": false,
+  "task_model": "claude-haiku-4-5-20251001"
+}

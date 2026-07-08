@@ -71,6 +71,10 @@ uv run agent-repair run-all --optimizer gepa
 The experiment is split into a search phase and a final-evaluation phase so that
 final data can never influence candidate construction.
 
+- `characterize` — baseline-only development characterization (per-tool confusion
+  matrix, per-slice metrics, viability classification). Never calls the repair model,
+  never runs GEPA, never loads held-out or `regression_final`. Use this first to decide
+  whether a scenario poses a meaningful repair problem for your task model.
 - `baseline` — evaluate the untouched artifacts on the optimization splits only.
 - `single-shot` — generate one repair and evaluate it on the optimization splits only.
 - `optimize` — run the full **search phase** (original + single-shot + GEPA), freeze
@@ -89,6 +93,28 @@ Search-only, then finalize:
 uv run agent-repair optimize --optimizer gepa --run-id my-run
 uv run agent-repair finalize --run-id my-run
 ```
+
+## Scenarios
+
+Scenarios are versioned under `scenarios/<id>/` (a `scenario.json` manifest plus the
+system prompt, tool schemas, and eval splits). Select one with `--scenario` (default
+`cancel_refund_sanity`). Each scenario declares editable surfaces (system prompt, tool
+descriptions), frozen surfaces (tool names, schemas), a target failure slice, and
+deterministic slice definitions derived from case metadata (never from model output).
+
+- `cancel_refund_sanity` — the original 5-tool cancel-vs-refund scenario; a
+  sanity/tutorial/integration scenario.
+- `subscription_billing_ambiguity` — a harder 10-tool scenario (termination/renewal vs
+  refund/dispute/credit with confounding billing language and nine linguistic challenge
+  categories).
+
+Scenario difficulty is decided from baseline `characterize` results, never from which
+optimizer wins. `regression_dev` is used for development/smoke; `regression_final` is a
+separate frozen gate consumed only by a real final run. See
+`reports/scenario_selection.md` and `reports/benchmark_readiness.md` for the current
+development findings (both scenarios are currently too easy for
+`claude-haiku-4-5-20251001`, so no final benchmark is warranted yet — an honest negative
+difficulty result, not a GEPA claim).
 
 ## Experiment Arms
 
