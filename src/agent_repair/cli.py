@@ -110,7 +110,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--task-model")
     parser.add_argument("--repair-model")
     parser.add_argument("--temperature", type=float, default=0.0)
-    parser.add_argument("--repair-temperature", type=float, default=0.2)
+    parser.add_argument(
+        "--repair-temperature",
+        type=_optional_float,
+        default=None,
+        help="Repair-call temperature. Use 'none' to omit it for models that reject temperature.",
+    )
     parser.add_argument("--max-tokens", type=int, default=512)
     parser.add_argument("--repair-max-tokens", type=int, default=4096)
     parser.add_argument("--optimize-limit", type=int)
@@ -164,3 +169,9 @@ def _compare_existing(run_dir: Path) -> None:
     if not comparison.exists():
         raise SystemExit(f"{comparison} does not exist; run run-all or optimize first")
     print(comparison.read_text(encoding="utf-8"))
+
+
+def _optional_float(value: str) -> float | None:
+    if value.lower() in {"none", "null", "omit"}:
+        return None
+    return float(value)

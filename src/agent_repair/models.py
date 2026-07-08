@@ -275,7 +275,7 @@ class ModelClient(Protocol):
         *,
         system_prompt: str,
         prompt: str,
-        temperature: float,
+        temperature: float | None,
         max_tokens: int,
     ) -> TextResult: ...
 

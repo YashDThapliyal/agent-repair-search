@@ -16,7 +16,7 @@ class ModelSettings:
     task_model: str
     repair_model: str
     temperature: float = 0.0
-    repair_temperature: float = 0.2
+    repair_temperature: float | None = None
     max_tokens: int = 512
     repair_max_tokens: int = 4096
     max_retries: int = 3
@@ -72,7 +72,7 @@ def load_model_settings(
     task_model_override: str | None,
     repair_model_override: str | None,
     temperature: float,
-    repair_temperature: float,
+    repair_temperature: float | None,
     max_tokens: int,
     repair_max_tokens: int,
 ) -> ModelSettings:

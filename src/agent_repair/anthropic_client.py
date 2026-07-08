@@ -75,16 +75,20 @@ class AnthropicModelClient(ModelClient):
         *,
         system_prompt: str,
         prompt: str,
-        temperature: float,
+        temperature: float | None,
         max_tokens: int,
     ) -> TextResult:
         def call() -> object:
+            request = {
+                "model": self.settings.repair_model,
+                "max_tokens": max_tokens,
+                "system": system_prompt,
+                "messages": [{"role": "user", "content": prompt}],
+            }
+            if temperature is not None:
+                request["temperature"] = temperature
             return self._client.messages.create(
-                model=self.settings.repair_model,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                system=system_prompt,
-                messages=[{"role": "user", "content": prompt}],
+                **request,
             )
 
         started = time.perf_counter()
