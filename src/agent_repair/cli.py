@@ -49,10 +49,18 @@ def main(argv: list[str] | None = None) -> None:
     if args.command == "compare":
         _compare_existing(repo_root / "runs" / args.run_id)
         return
-    model_client = FakeModelClient() if args.fake_model else AnthropicModelClient(settings)
+    task_model_client = (
+        FakeModelClient(task_model=settings.task_model, repair_model=settings.repair_model)
+        if args.fake_model
+        else AnthropicModelClient(settings)
+    )
+    repair_model_client = task_model_client
     run_dir = prepare_run_dir(config)
     baseline = run_baseline_arm(
-        config=config, run_dir=run_dir, model_client=model_client, settings=settings
+        config=config,
+        run_dir=run_dir,
+        task_model_client=task_model_client,
+        settings=settings,
     )
     if args.command == "baseline":
         print(f"Wrote baseline run to {run_dir}")
@@ -60,7 +68,8 @@ def main(argv: list[str] | None = None) -> None:
     single_shot = run_single_shot_arm(
         config=config,
         run_dir=run_dir,
-        model_client=model_client,
+        task_model_client=task_model_client,
+        repair_model_client=repair_model_client,
         settings=settings,
         baseline=baseline,
     )
@@ -70,7 +79,8 @@ def main(argv: list[str] | None = None) -> None:
     optimizer, search = run_optimizer_arm(
         config=config,
         run_dir=run_dir,
-        model_client=model_client,
+        task_model_client=task_model_client,
+        repair_model_client=repair_model_client,
         settings=settings,
         baseline=baseline,
     )
@@ -81,6 +91,7 @@ def main(argv: list[str] | None = None) -> None:
         optimizer=optimizer,
         regression_tolerance=config.regression_tolerance,
         optimizer_name=search.optimizer_name,
+        settings=settings,
     )
     print(f"Wrote comparison run to {run_dir}")
     print(json.dumps(summary["regression_gate"], indent=2, sort_keys=True))
@@ -96,6 +107,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--smoke", action="store_true")
     parser.add_argument("--fake-model", action="store_true")
     parser.add_argument("--model")
+    parser.add_argument("--task-model")
+    parser.add_argument("--repair-model")
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--repair-temperature", type=float, default=0.2)
     parser.add_argument("--max-tokens", type=int, default=512)
@@ -114,15 +127,31 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _settings(args: argparse.Namespace) -> ModelSettings:
     if args.fake_model:
+        shared_model = args.model or os.environ.get("ANTHROPIC_MODEL")
+        task_model = (
+            args.task_model
+            or os.environ.get("ANTHROPIC_TASK_MODEL")
+            or shared_model
+            or "fake-task-model"
+        )
+        repair_model = (
+            args.repair_model
+            or os.environ.get("ANTHROPIC_REPAIR_MODEL")
+            or shared_model
+            or "fake-repair-model"
+        )
         return ModelSettings(
-            model=args.model or os.environ.get("ANTHROPIC_MODEL", "fake-model"),
+            task_model=task_model,
+            repair_model=repair_model,
             temperature=args.temperature,
             repair_temperature=args.repair_temperature,
             max_tokens=args.max_tokens,
             repair_max_tokens=args.repair_max_tokens,
         )
     return load_model_settings(
-        model_override=args.model,
+        shared_model_override=args.model,
+        task_model_override=args.task_model,
+        repair_model_override=args.repair_model,
         temperature=args.temperature,
         repair_temperature=args.repair_temperature,
         max_tokens=args.max_tokens,

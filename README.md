@@ -54,7 +54,8 @@ Run a live Anthropic-backed smoke experiment:
 
 ```bash
 export ANTHROPIC_API_KEY=...
-export ANTHROPIC_MODEL=...
+export ANTHROPIC_TASK_MODEL=claude-haiku-4-5-20251001
+export ANTHROPIC_REPAIR_MODEL=claude-sonnet-5
 uv run agent-repair run-all --smoke
 ```
 
@@ -71,6 +72,8 @@ uv run agent-repair run-all
 `single-shot` asks Anthropic for exactly one repair using the diagnosis, optimization failures, current artifacts, and allowed edit surfaces.
 
 `optimizer` runs the internal `RepairOptimizer` interface. The current implementation is explicitly labeled `fallback_evolutionary_reflection`: it generates multiple repair candidates, scores them only on the optimization split, uses feedback for later candidates, records lineage, and selects one finalist before held-out or regression evaluation.
+
+All three arms execute eval cases with the same task model. The single-shot repair generator and optimizer reflection/mutation calls use the same repair model. `ANTHROPIC_MODEL` is still accepted as a backward-compatible shared fallback when a role-specific model variable is absent.
 
 ## Dataset Split Discipline
 
@@ -157,7 +160,8 @@ Full live reproduction:
 ```bash
 uv sync
 export ANTHROPIC_API_KEY=...
-export ANTHROPIC_MODEL=...
+export ANTHROPIC_TASK_MODEL=claude-haiku-4-5-20251001
+export ANTHROPIC_REPAIR_MODEL=claude-sonnet-5
 uv run agent-repair run-all
 ```
 

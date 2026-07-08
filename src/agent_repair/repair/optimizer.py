@@ -29,7 +29,8 @@ class FallbackEvolutionaryOptimizer(RepairOptimizer):
         self,
         *,
         context: RepairContext,
-        model_client: ModelClient,
+        task_model_client: ModelClient,
+        repair_model_client: ModelClient,
     ) -> SearchResult:
         started = time.perf_counter()
         candidates: list[RepairCandidate] = []
@@ -53,7 +54,7 @@ class FallbackEvolutionaryOptimizer(RepairOptimizer):
                 prompt = self._candidate_prompt(
                     context, parent, scores.get(parent.candidate_id) if parent else None
                 )
-                result = model_client.complete_text(
+                result = repair_model_client.complete_text(
                     system_prompt=REPAIR_SYSTEM_PROMPT,
                     prompt=prompt,
                     temperature=self.settings.repair_temperature,
@@ -69,11 +70,12 @@ class FallbackEvolutionaryOptimizer(RepairOptimizer):
                     generation=generation,
                     rationale=rationale,
                     optimizer=self.optimizer_name,
+                    model_id=result.model_id or self.settings.repair_model,
                 )
                 if candidate.candidate_id in scores:
                     continue
                 score, eval_calls, examples = self._score_candidate(
-                    candidate, context, model_client
+                    candidate, context, task_model_client
                 )
                 agent_eval_calls += eval_calls
                 examples_evaluated += examples
@@ -93,6 +95,7 @@ class FallbackEvolutionaryOptimizer(RepairOptimizer):
                 generation=0,
                 rationale="No repair candidates generated; baseline artifacts retained.",
                 optimizer=self.optimizer_name,
+                model_id=None,
             )
             candidates = [baseline_candidate]
             scores[baseline_candidate.candidate_id] = 0.0

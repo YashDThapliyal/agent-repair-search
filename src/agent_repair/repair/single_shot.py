@@ -33,6 +33,7 @@ def generate_single_shot_candidate(
         generation=1,
         rationale=rationale,
         optimizer="single_shot",
+        model_id=result.model_id or settings.repair_model,
     )
 
 

@@ -13,7 +13,8 @@ class ConfigurationError(RuntimeError):
 
 @dataclass(frozen=True)
 class ModelSettings:
-    model: str
+    task_model: str
+    repair_model: str
     temperature: float = 0.0
     repair_temperature: float = 0.2
     max_tokens: int = 512
@@ -67,25 +68,35 @@ class ExperimentConfig:
 
 def load_model_settings(
     *,
-    model_override: str | None,
+    shared_model_override: str | None,
+    task_model_override: str | None,
+    repair_model_override: str | None,
     temperature: float,
     repair_temperature: float,
     max_tokens: int,
     repair_max_tokens: int,
 ) -> ModelSettings:
     api_key = os.environ.get("ANTHROPIC_API_KEY")
-    model = model_override or os.environ.get("ANTHROPIC_MODEL")
+    shared_model = shared_model_override or os.environ.get("ANTHROPIC_MODEL")
+    task_model = task_model_override or os.environ.get("ANTHROPIC_TASK_MODEL") or shared_model
+    repair_model = repair_model_override or os.environ.get("ANTHROPIC_REPAIR_MODEL") or shared_model
     if not api_key:
         raise ConfigurationError(
             "ANTHROPIC_API_KEY is required for live runs. Use --fake-model for offline smoke."
         )
-    if not model:
+    if not task_model:
         raise ConfigurationError(
-            "ANTHROPIC_MODEL is required for live runs, or pass --model. "
-            "No model identifier is hardcoded."
+            "ANTHROPIC_TASK_MODEL is required for task-agent calls, or set "
+            "ANTHROPIC_MODEL / pass --model as a backward-compatible shared model."
+        )
+    if not repair_model:
+        raise ConfigurationError(
+            "ANTHROPIC_REPAIR_MODEL is required for repair generation, or set "
+            "ANTHROPIC_MODEL / pass --model as a backward-compatible shared model."
         )
     return ModelSettings(
-        model=model,
+        task_model=task_model,
+        repair_model=repair_model,
         temperature=temperature,
         repair_temperature=repair_temperature,
         max_tokens=max_tokens,

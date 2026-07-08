@@ -54,6 +54,14 @@ def prepare_run_dir(config: ExperimentConfig) -> Path:
     run_dir = config.repo_root / "runs" / config.run_id
     run_dir.mkdir(parents=True, exist_ok=False)
     write_json(run_dir / "config.json", config.to_dict())
+    if config.model_settings is not None:
+        write_json(
+            run_dir / "model_manifest.json",
+            {
+                "task_model": config.model_settings.task_model,
+                "repair_model": config.model_settings.repair_model,
+            },
+        )
     write_json(
         run_dir / "environment.json",
         {
@@ -95,7 +103,7 @@ def run_baseline_arm(
     *,
     config: ExperimentConfig,
     run_dir: Path,
-    model_client: ModelClient,
+    task_model_client: ModelClient,
     settings: ModelSettings,
 ) -> ArmResult:
     agent_dir = config.repo_root / "agent"
@@ -114,7 +122,7 @@ def run_baseline_arm(
         cases=optimize_cases,
         artifacts=artifacts,
         base_tools=base_tools,
-        model_client=model_client,
+        model_client=task_model_client,
         settings=settings,
     )
     held_predictions, held_metrics = evaluate_artifacts(
@@ -122,7 +130,7 @@ def run_baseline_arm(
         cases=heldout_cases,
         artifacts=artifacts,
         base_tools=base_tools,
-        model_client=model_client,
+        model_client=task_model_client,
         settings=settings,
     )
     reg_predictions, reg_metrics = evaluate_artifacts(
@@ -130,7 +138,7 @@ def run_baseline_arm(
         cases=regression_cases,
         artifacts=artifacts,
         base_tools=base_tools,
-        model_client=model_client,
+        model_client=task_model_client,
         settings=settings,
     )
     _write_predictions(
@@ -149,7 +157,8 @@ def run_single_shot_arm(
     *,
     config: ExperimentConfig,
     run_dir: Path,
-    model_client: ModelClient,
+    task_model_client: ModelClient,
+    repair_model_client: ModelClient,
     settings: ModelSettings,
     baseline: ArmResult,
 ) -> ArmResult:
@@ -168,7 +177,7 @@ def run_single_shot_arm(
     )
     candidate = generate_single_shot_candidate(
         context=context,
-        model_client=model_client,
+        model_client=repair_model_client,
         settings=settings,
     )
     arm_dir = run_dir / "single_shot"
@@ -185,7 +194,7 @@ def run_single_shot_arm(
         heldout_cases=heldout_cases,
         regression_cases=regression_cases,
         base_tools=base_tools,
-        model_client=model_client,
+        model_client=task_model_client,
         settings=settings,
     )
 
@@ -194,7 +203,8 @@ def run_optimizer_arm(
     *,
     config: ExperimentConfig,
     run_dir: Path,
-    model_client: ModelClient,
+    task_model_client: ModelClient,
+    repair_model_client: ModelClient,
     settings: ModelSettings,
     baseline: ArmResult,
 ) -> tuple[ArmResult, SearchResult]:
@@ -217,7 +227,8 @@ def run_optimizer_arm(
             optimization_cases=optimize_cases,
             failing_records=failing,
         ),
-        model_client=model_client,
+        task_model_client=task_model_client,
+        repair_model_client=repair_model_client,
     )
     arm_dir = run_dir / "optimizer"
     arm_dir.mkdir(exist_ok=True)
@@ -227,6 +238,7 @@ def run_optimizer_arm(
             {
                 **candidate.to_dict(),
                 "optimization_score": search.candidate_scores[candidate.candidate_id],
+                "repair_model": candidate.model_id,
             }
             for candidate in search.candidates
         ],
@@ -243,6 +255,8 @@ def run_optimizer_arm(
             "total_examples_evaluated": search.total_examples_evaluated,
             "wall_clock_seconds": search.wall_clock_seconds,
             "candidate_scores": search.candidate_scores,
+            "task_model": settings.task_model,
+            "repair_model": settings.repair_model,
         },
     )
     (arm_dir / "diff.patch").write_text(
@@ -256,7 +270,7 @@ def run_optimizer_arm(
         heldout_cases=heldout_cases,
         regression_cases=regression_cases,
         base_tools=base_tools,
-        model_client=model_client,
+        model_client=task_model_client,
         settings=settings,
     )
     return arm, search
@@ -270,6 +284,7 @@ def write_comparison_report(
     optimizer: ArmResult,
     regression_tolerance: float,
     optimizer_name: str,
+    settings: ModelSettings,
 ) -> JSONObject:
     baseline_reg = _require_metric(baseline.regression_metrics)
     optimizer_reg = _require_metric(optimizer.regression_metrics)
@@ -277,6 +292,10 @@ def write_comparison_report(
     gate_passed = optimizer_reg.mean_score >= gate_threshold
     summary = {
         "optimizer_name": optimizer_name,
+        "models": {
+            "task_model": settings.task_model,
+            "repair_model": settings.repair_model,
+        },
         "regression_gate": {
             "passed": gate_passed,
             "baseline_regression_score": baseline_reg.mean_score,
@@ -411,10 +430,14 @@ def _failing_records(path: Path, *, split: str) -> list[JSONObject]:
 def _render_report(summary: JSONObject) -> str:
     arms = summary["arms"]
     assert isinstance(arms, dict)
+    models = summary["models"]
+    assert isinstance(models, dict)
     lines = [
         "# Agent Repair Search Report",
         "",
         f"Optimizer actually run: `{summary['optimizer_name']}`",
+        f"Task model: `{models['task_model']}`",
+        f"Repair model: `{models['repair_model']}`",
         "",
         "| Arm | Optimize score | Held-out score | Regression score | Held-out pass rate |",
         "| --- | ---: | ---: | ---: | ---: |",

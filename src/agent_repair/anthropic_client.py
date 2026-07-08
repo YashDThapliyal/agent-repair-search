@@ -36,7 +36,7 @@ class AnthropicModelClient(ModelClient):
     ) -> AgentResult:
         def call() -> object:
             return self._client.messages.create(
-                model=self.settings.model,
+                model=self.settings.task_model,
                 max_tokens=max_tokens,
                 temperature=temperature,
                 system=system_prompt,
@@ -66,6 +66,7 @@ class AnthropicModelClient(ModelClient):
             latency_ms=latency_ms,
             input_tokens=getattr(usage, "input_tokens", None),
             output_tokens=getattr(usage, "output_tokens", None),
+            model_id=self.settings.task_model,
             raw_response=response,
         )
 
@@ -79,7 +80,7 @@ class AnthropicModelClient(ModelClient):
     ) -> TextResult:
         def call() -> object:
             return self._client.messages.create(
-                model=self.settings.model,
+                model=self.settings.repair_model,
                 max_tokens=max_tokens,
                 temperature=temperature,
                 system=system_prompt,
@@ -101,6 +102,7 @@ class AnthropicModelClient(ModelClient):
             latency_ms=latency_ms,
             input_tokens=getattr(usage, "input_tokens", None),
             output_tokens=getattr(usage, "output_tokens", None),
+            model_id=self.settings.repair_model,
             raw_response=response,
         )
 

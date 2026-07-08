@@ -3,11 +3,12 @@
 ## Architecture
 
 - Compact Python 3.11+ package under `src/agent_repair`.
-- Official Anthropic SDK is isolated behind `AnthropicModelClient`.
+- Official Anthropic SDK is isolated behind `AnthropicModelClient`; tool-call rollouts use the task model and repair text calls use the repair model.
 - Core typed structures live in `models.py`: eval cases, agent results, artifact snapshots, repair candidates, and metrics.
 - Editable surfaces are only `agent/system_prompt.md` and tool descriptions in `agent/tools.json`.
 - CLI entry point is `agent-repair` with baseline, single-shot, optimize, compare, and run-all commands.
 - Experiment runs write auditable filesystem artifacts under `runs/<run-id>/`.
+- Runs record resolved `task_model` and `repair_model` IDs in config, model manifest, comparison report, predictions, and repair candidate metadata where feasible.
 - Normal tests use fake model clients only; live Anthropic calls are opt-in through CLI/env.
 
 ## Milestones
@@ -39,7 +40,7 @@
 
 ## External API Risks
 
-- `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL` may be absent; offline fake-client paths must remain complete.
+- `ANTHROPIC_API_KEY`, `ANTHROPIC_TASK_MODEL`, and `ANTHROPIC_REPAIR_MODEL` may be absent; `ANTHROPIC_MODEL` remains a shared fallback and offline fake-client paths must remain complete.
 - GEPA package availability/API may be incompatible or unavailable under restricted network access. If blocked, use the documented fallback optimizer and label it accurately.
 - GitHub CLI is installed, but current auth check reports an invalid token for `YashDThapliyal`; remote creation may require re-authentication.
 
@@ -55,5 +56,5 @@
 ## Final Status Notes
 
 - Offline implementation and checks are complete.
-- Live Anthropic run was not executed because `ANTHROPIC_MODEL` is missing in the current environment.
+- Model-role split is implemented with `ANTHROPIC_TASK_MODEL` and `ANTHROPIC_REPAIR_MODEL`, while preserving `ANTHROPIC_MODEL` as a shared fallback.
 - Public GitHub repository creation is blocked by invalid GitHub CLI auth for `YashDThapliyal`; run `gh auth login -h github.com`, then create/push with the command in the final report.

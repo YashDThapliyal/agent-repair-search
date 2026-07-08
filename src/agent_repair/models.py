@@ -72,6 +72,7 @@ class AgentResult:
     latency_ms: float
     input_tokens: int | None
     output_tokens: int | None
+    model_id: str | None = None
     raw_response: object | None = None
 
     def to_record(self) -> JSONObject:
@@ -82,6 +83,7 @@ class AgentResult:
             "latency_ms": self.latency_ms,
             "input_tokens": self.input_tokens,
             "output_tokens": self.output_tokens,
+            "model_id": self.model_id,
         }
 
 
@@ -91,6 +93,7 @@ class TextResult:
     latency_ms: float
     input_tokens: int | None
     output_tokens: int | None
+    model_id: str | None = None
     raw_response: object | None = None
 
 
@@ -188,6 +191,7 @@ class RepairCandidate:
     generation: int
     rationale: str | None
     optimizer: str = "unknown"
+    model_id: str | None = None
 
     @classmethod
     def create(
@@ -197,6 +201,7 @@ class RepairCandidate:
         generation: int,
         rationale: str | None,
         optimizer: str,
+        model_id: str | None = None,
     ) -> RepairCandidate:
         payload = {
             "artifacts": artifacts.to_dict(),
@@ -204,6 +209,7 @@ class RepairCandidate:
             "generation": generation,
             "rationale": rationale,
             "optimizer": optimizer,
+            "model_id": model_id,
         }
         digest = stable_json_hash(payload)[:16]
         return cls(
@@ -213,6 +219,7 @@ class RepairCandidate:
             generation=generation,
             rationale=rationale,
             optimizer=optimizer,
+            model_id=model_id,
         )
 
     def to_dict(self) -> JSONObject:
@@ -223,6 +230,7 @@ class RepairCandidate:
             "generation": self.generation,
             "rationale": self.rationale,
             "optimizer": self.optimizer,
+            "model_id": self.model_id,
         }
 
     @classmethod
@@ -239,6 +247,7 @@ class RepairCandidate:
             raise ValueError("candidate optimizer must be a string")
         parent_id = data.get("parent_id")
         rationale = data.get("rationale")
+        model_id = data.get("model_id")
         return cls(
             candidate_id=candidate_id,
             artifacts=AgentArtifacts.from_dict(artifacts_data),
@@ -246,6 +255,7 @@ class RepairCandidate:
             generation=generation,
             rationale=rationale if isinstance(rationale, str) else None,
             optimizer=optimizer,
+            model_id=model_id if isinstance(model_id, str) else None,
         )
 
 

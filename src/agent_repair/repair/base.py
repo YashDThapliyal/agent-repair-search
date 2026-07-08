@@ -36,5 +36,6 @@ class RepairOptimizer(Protocol):
         self,
         *,
         context: RepairContext,
-        model_client: ModelClient,
+        task_model_client: ModelClient,
+        repair_model_client: ModelClient,
     ) -> SearchResult: ...

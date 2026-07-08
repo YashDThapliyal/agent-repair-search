@@ -9,7 +9,14 @@ from agent_repair.models import AgentResult, ModelClient, TextResult, ToolSchema
 class FakeModelClient(ModelClient):
     """Deterministic offline model for tests and smoke runs."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        task_model: str = "fake-task-model",
+        repair_model: str = "fake-repair-model",
+    ) -> None:
+        self.task_model = task_model
+        self.repair_model = repair_model
         self.text_calls = 0
         self.tool_calls = 0
 
@@ -36,6 +43,7 @@ class FakeModelClient(ModelClient):
             latency_ms=1.0,
             input_tokens=25,
             output_tokens=8,
+            model_id=self.task_model,
             raw_response=None,
         )
 
@@ -101,6 +109,7 @@ class FakeModelClient(ModelClient):
             latency_ms=2.0,
             input_tokens=100,
             output_tokens=120,
+            model_id=self.repair_model,
             raw_response=None,
         )
 
