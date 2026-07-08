@@ -1,0 +1,109 @@
+[
+  {
+    "name": "search_customer",
+    "description": "Find a customer account by name, email, phone, username, or order id.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {"type": "string", "description": "Identifier to search for."}
+      },
+      "required": ["query"]
+    }
+  },
+  {
+    "name": "lookup_subscription",
+    "description": "Read the status, plan, renewal date, or details of an existing subscription.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "subscription_id": {"type": "string"},
+        "customer_id": {"type": "string"}
+      }
+    }
+  },
+  {
+    "name": "cancel_subscription",
+    "description": "Cancel a subscription. Handles billing and payment concerns and stops the plan.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "effective_timing": {
+          "type": "string",
+          "enum": ["immediate", "end_of_billing_cycle"],
+          "description": "When the cancellation takes effect."
+        }
+      }
+    }
+  },
+  {
+    "name": "pause_subscription",
+    "description": "Temporarily pause a subscription and its billing for a period of time.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "pause_until": {"type": "string", "description": "When billing should resume."}
+      }
+    }
+  },
+  {
+    "name": "disable_auto_renew",
+    "description": "Stop a subscription from automatically renewing and rebilling in future cycles.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "subscription_id": {"type": "string"}
+      }
+    }
+  },
+  {
+    "name": "change_subscription_plan",
+    "description": "Move a subscription to a different plan or tier (for example basic, pro, premium).",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "target_plan": {"type": "string", "description": "The plan or tier to switch to."}
+      },
+      "required": ["target_plan"]
+    }
+  },
+  {
+    "name": "issue_refund",
+    "description": "Resolve billing and money problems: refund charges, reverse payments, and handle requests about being charged, invoices, and getting money back.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "charge_id": {"type": "string", "description": "The charge to refund."}
+      }
+    }
+  },
+  {
+    "name": "dispute_charge",
+    "description": "Open a dispute for an unauthorized, unrecognized, or fraudulent charge.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "charge_id": {"type": "string"}
+      }
+    }
+  },
+  {
+    "name": "apply_account_credit",
+    "description": "Add a credit to the customer's account balance for future use.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "credit_amount": {"type": "string", "description": "The credit amount to apply."}
+      }
+    }
+  },
+  {
+    "name": "escalate_to_human",
+    "description": "Escalate legal, high-risk, or unsupported requests to a human agent.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "reason_code": {"type": "string"}
+      }
+    }
+  }
+]

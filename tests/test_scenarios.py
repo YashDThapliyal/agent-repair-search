@@ -49,3 +49,32 @@ def test_target_slice_matches_only_billing_cluster() -> None:
         if scenario.slice_of(case) == "target_cancel_billing":
             assert case.expected_tool == "cancel_subscription"
             assert case.failure_cluster == "billing_language_routes_to_refund"
+
+
+def test_harder_scenario_loads_and_validates() -> None:
+    from agent_repair.datasets import load_split as _load
+    from agent_repair.datasets import validate_all_splits
+
+    scenario = load_scenario(REPO, "subscription_billing_ambiguity")
+    assert scenario.target_slice == "target_stop_with_money"
+    # 10 frozen tools.
+    import json
+
+    tools = json.loads(scenario.tools_path.read_text(encoding="utf-8"))
+    assert len(tools) == 10
+    # Splits are internally consistent (no dup ids, no overlap, no near-duplicates).
+    validate_all_splits(scenario.root)
+    # Every case maps to a declared slice; challenge metadata is carried through.
+    for split in ("optimize_train", "heldout", "regression_final"):
+        for case in _load(scenario.root, split):
+            assert scenario.slice_of(case) != "other"
+            assert case.challenge_category is not None
+
+
+def test_target_family_never_in_regression_final() -> None:
+    from agent_repair.datasets import load_split as _load
+
+    scenario = load_scenario(REPO, "subscription_billing_ambiguity")
+    for split in ("regression_dev", "regression_final"):
+        for case in _load(scenario.root, split):
+            assert case.failure_cluster != "money_language_confounds_termination"

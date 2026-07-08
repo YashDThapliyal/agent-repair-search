@@ -106,6 +106,7 @@ class EvalCase:
     category: str
     failure_cluster: str | None = None
     notes: str | None = None
+    challenge_category: str | None = None
 
     @classmethod
     def from_dict(cls, data: JSONObject) -> EvalCase:
@@ -118,10 +119,14 @@ class EvalCase:
             raise ValueError(f"eval case {data.get('id')} requires object expected_args")
         failure_cluster = data.get("failure_cluster")
         notes = data.get("notes")
-        if failure_cluster is not None and not isinstance(failure_cluster, str):
-            raise ValueError(f"eval case {data.get('id')} has non-string failure_cluster")
-        if notes is not None and not isinstance(notes, str):
-            raise ValueError(f"eval case {data.get('id')} has non-string notes")
+        challenge_category = data.get("challenge_category")
+        for optional_field, value in (
+            ("failure_cluster", failure_cluster),
+            ("notes", notes),
+            ("challenge_category", challenge_category),
+        ):
+            if value is not None and not isinstance(value, str):
+                raise ValueError(f"eval case {data.get('id')} has non-string {optional_field}")
         return cls(
             id=str(data["id"]),
             input=str(data["input"]),
@@ -130,6 +135,7 @@ class EvalCase:
             category=str(data["category"]),
             failure_cluster=failure_cluster,
             notes=notes,
+            challenge_category=challenge_category,
         )
 
     def to_dict(self) -> JSONObject:

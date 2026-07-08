@@ -1,0 +1,68 @@
+{
+  "scenario_id": "subscription_billing_ambiguity",
+  "version": "1.0",
+  "description": "Harder single-step tool-calling scenario with 10 overlapping subscription/billing tools. Target failure family: subscription termination or renewal requests that also carry monetary or prior-charge language, which the baseline tends to misroute toward refund/dispute or to confuse among cancel / disable_auto_renew / pause.",
+  "task_role": "main_candidate",
+  "editable_surfaces": ["system_prompt", "tool_descriptions"],
+  "frozen_surfaces": ["tool_names", "tool_schemas"],
+  "artifacts": {"system_prompt": "system_prompt.md", "tools": "tools.json"},
+  "splits": {
+    "optimize_train": "optimize_train.jsonl",
+    "optimize_val": "optimize_val.jsonl",
+    "heldout": "heldout.jsonl",
+    "regression_dev": "regression_dev.jsonl",
+    "regression_final": "regression_final.jsonl"
+  },
+  "target_slice": "target_stop_with_money",
+  "target_failure_family": "subscription termination/renewal intent expressed with monetary or prior-charge language; correct tools are cancel_subscription, disable_auto_renew, or pause_subscription",
+  "confusion_set": [
+    "cancel_subscription",
+    "disable_auto_renew",
+    "pause_subscription",
+    "issue_refund",
+    "dispute_charge"
+  ],
+  "ambiguity_axes": {
+    "subscription_lifecycle": ["cancel_immediate", "cancel_period_end", "disable_auto_renew", "pause", "change_plan"],
+    "monetary_resolution": ["refund_known_charge", "dispute_unauthorized_charge", "apply_future_credit"],
+    "escalation": ["high_risk_or_legal", "normal_resolvable"]
+  },
+  "challenge_categories": [
+    "explicit_intent",
+    "implicit_intent",
+    "confounding_billing_language",
+    "negation",
+    "contrast",
+    "temporal_distinction",
+    "mixed_historical_future_language",
+    "indirect_request",
+    "distractor_details"
+  ],
+  "argument_fields": {
+    "checked": ["effective_timing", "target_plan"],
+    "schema_only": ["charge_id", "credit_amount", "pause_until", "reason_code", "subscription_id", "customer_id"]
+  },
+  "slices": {
+    "target_stop_with_money": {"failure_cluster": "money_language_confounds_termination"},
+    "legitimate_refund": {"expected_tool": "issue_refund", "failure_cluster": null},
+    "charge_dispute": {"expected_tool": "dispute_charge"},
+    "account_credit": {"expected_tool": "apply_account_credit"},
+    "plan_change": {"expected_tool": "change_subscription_plan"},
+    "plain_cancellation": {"expected_tool": "cancel_subscription", "failure_cluster": null},
+    "plain_disable_renew": {"expected_tool": "disable_auto_renew", "failure_cluster": null},
+    "plain_pause": {"expected_tool": "pause_subscription", "failure_cluster": null},
+    "customer_search": {"expected_tool": "search_customer"},
+    "subscription_lookup": {"expected_tool": "lookup_subscription"},
+    "escalation": {"expected_tool": "escalate_to_human"}
+  },
+  "composition": {
+    "total": 123,
+    "optimize_train": 43,
+    "optimize_val": 22,
+    "heldout": 30,
+    "regression_dev": 9,
+    "regression_final": 19,
+    "split_procedure": "Target-family cases (failure_cluster=money_language_confounds_termination) are placed only in optimize_train/optimize_val/heldout via a deterministic round-robin. Non-target valid behaviors are spread across all five splits with regression weighting; heldout and regression_final were frozen before any optimizer search and were never inspected."
+  },
+  "frozen_before_search": true
+}

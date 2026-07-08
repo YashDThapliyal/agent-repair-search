@@ -1,0 +1,90 @@
+{
+  "challenge_categories": {
+    "confounding_billing_language": 8,
+    "contrast": 18,
+    "distractor_details": 13,
+    "explicit_intent": 48,
+    "implicit_intent": 16,
+    "mixed_historical_future_language": 4,
+    "negation": 8,
+    "temporal_distinction": 8
+  },
+  "counts": {
+    "heldout": 30,
+    "optimize_train": 43,
+    "optimize_val": 22,
+    "regression_dev": 9,
+    "regression_final": 19
+  },
+  "per_split_slices": {
+    "heldout": {
+      "account_credit": 2,
+      "charge_dispute": 2,
+      "customer_search": 2,
+      "escalation": 2,
+      "legitimate_refund": 3,
+      "plain_cancellation": 2,
+      "plain_disable_renew": 1,
+      "plain_pause": 2,
+      "plan_change": 2,
+      "subscription_lookup": 1,
+      "target_stop_with_money": 11
+    },
+    "optimize_train": {
+      "account_credit": 2,
+      "charge_dispute": 2,
+      "customer_search": 1,
+      "escalation": 1,
+      "legitimate_refund": 3,
+      "plain_cancellation": 2,
+      "plain_disable_renew": 2,
+      "plain_pause": 1,
+      "plan_change": 3,
+      "subscription_lookup": 2,
+      "target_stop_with_money": 24
+    },
+    "optimize_val": {
+      "account_credit": 1,
+      "charge_dispute": 1,
+      "customer_search": 1,
+      "escalation": 1,
+      "legitimate_refund": 2,
+      "plain_cancellation": 1,
+      "plain_disable_renew": 1,
+      "plain_pause": 1,
+      "plan_change": 1,
+      "target_stop_with_money": 12
+    },
+    "regression_dev": {
+      "account_credit": 1,
+      "charge_dispute": 1,
+      "legitimate_refund": 2,
+      "plain_cancellation": 1,
+      "plain_disable_renew": 1,
+      "plain_pause": 1,
+      "plan_change": 1,
+      "subscription_lookup": 1
+    },
+    "regression_final": {
+      "account_credit": 2,
+      "charge_dispute": 2,
+      "customer_search": 2,
+      "escalation": 2,
+      "legitimate_refund": 2,
+      "plain_cancellation": 2,
+      "plain_disable_renew": 1,
+      "plain_pause": 1,
+      "plan_change": 3,
+      "subscription_lookup": 2
+    }
+  },
+  "scenario_id": "subscription_billing_ambiguity",
+  "split_hashes": {
+    "heldout": "4ca4755ae21001d523adf278128ce7e978912e77bf2d725e60892806ea7cc9ca",
+    "optimize_train": "635638ba1f8ed2694c0cd3833926a70f841a43051205e908f9c06d606a7c98ef",
+    "optimize_val": "a8ef2b23edafa62ae468335f6b719ae56bc6ed6b8bec90a687a30067ea0782a6",
+    "regression_dev": "b401a0fced81e80dc57331036859156d31c7861b0735356cb150e40d9b78b9dd",
+    "regression_final": "8d8729cc7e95eef0093f5d5b332c204e69f799ace196fbf9da7e5ed0c61f50d6"
+  },
+  "version": "1.0"
+}
