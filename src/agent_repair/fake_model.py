@@ -23,7 +23,11 @@ class FakeModelClient(ModelClient):
         max_tokens: int,
     ) -> AgentResult:
         self.tool_calls += 1
-        fixed = "cancellation intent wins" in system_prompt.lower()
+        prompt_lower = system_prompt.lower()
+        fixed = (
+            "cancellation intent wins" in prompt_lower
+            or "first decide the requested action" in prompt_lower
+        )
         tool_name, args = _route(user_input, fixed=fixed)
         return AgentResult(
             final_answer=f"I will route this to {tool_name}.",
