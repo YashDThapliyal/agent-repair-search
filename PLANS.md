@@ -24,7 +24,7 @@
 - [x] Implement optimizer-backed fallback search with candidate lineage.
 - [x] Implement held-out validation, regression gate, reporting, and patches.
 - [x] Implement full CLI and offline smoke pipeline.
-- [ ] Write README without prohibited mentions or fabricated results.
+- [x] Write README without prohibited mentions or fabricated results.
 - [x] Run formatting, lint, tests, and offline smoke.
 - [ ] Create logical commits and attempt public GitHub push.
 
