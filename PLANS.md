@@ -26,8 +26,8 @@
 - [x] Implement held-out validation, regression gate, reporting, and patches.
 - [x] Implement full CLI and live GEPA smoke path.
 - [x] Write README without prohibited mentions or fabricated results.
-- [ ] Run formatting, lint, tests, and live smoke.
-- [ ] Create logical corrective commit and push when validation passes.
+- [x] Run formatting, lint, tests, and live smoke.
+- [x] Create logical corrective commits and push when validation passes.
 
 ## Experiment Integrity Rules
 
@@ -117,3 +117,13 @@
 
 - `uv run ruff format --check .`, `uv run ruff check .`, and `uv run pytest` pass (58 tests).
 - Offline end-to-end verification is provided by `tests/test_pipeline_isolation.py`, which drives the real reporting pipeline with in-process stub clients. A runtime `--fake-model` CLI flag was intentionally **not** reintroduced: `AGENTS.md` section 17.4 forbids a product/runtime model-simulation path, and the migration deliberately removed `fake_model.py`. The stub-driven integration test provides the equivalent offline coverage without violating that contract.
+
+### Live integration smoke (NOT benchmark evidence)
+
+- Ran `agent-repair run-all --optimizer gepa --smoke --run-id live-gepa-integration-smoke` with `ANTHROPIC_TASK_MODEL=claude-haiku-4-5-20251001` and `ANTHROPIC_REPAIR_MODEL=claude-sonnet-5`.
+- Real GEPA executed (`optimizer_actual=gepa`, `gepa_version=0.1.1`), custom Anthropic proposer ran (`proposer_type=custom_anthropic_repair_proposer`, 2 repair-model calls, 15 task-model eval calls). Held-out was not consumed (smoke); registry untouched; `heldout_pristine=true`; no secrets in artifacts.
+- Honest outcome: the GEPA finalist equaled the baseline unchanged (empty `optimizer/diff.patch`) because no proposal beat the seed on the 3-example val subsample; single-shot changed but dropped regression to 0.333. This is integration evidence only, not a benchmark result.
+
+### Remote
+
+- Public repository created and pushed: `https://github.com/YashDThapliyal/agent-repair-search` (`main` tracks `origin/main`).
