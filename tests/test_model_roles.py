@@ -1,16 +1,19 @@
 from __future__ import annotations
 
 import json
-import uuid
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 from agent_repair.anthropic_client import AnthropicModelClient
-from agent_repair.cli import main
+from agent_repair.artifacts import load_artifacts, load_tool_schemas
 from agent_repair.config import ConfigurationError, ModelSettings, load_model_settings
-from agent_repair.models import ToolSchema
+from agent_repair.datasets import load_split
+from agent_repair.models import AgentArtifacts, AgentResult, TextResult, ToolSchema
+from agent_repair.repair.base import RepairContext
+from agent_repair.repair.single_shot import generate_single_shot_candidate
+from agent_repair.reporting import evaluate_artifacts
 
 
 def test_role_specific_environment_variables_resolve(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -24,7 +27,7 @@ def test_role_specific_environment_variables_resolve(monkeypatch: pytest.MonkeyP
         task_model_override=None,
         repair_model_override=None,
         temperature=0.0,
-        repair_temperature=0.2,
+        repair_temperature=None,
         max_tokens=128,
         repair_max_tokens=512,
     )
@@ -33,7 +36,7 @@ def test_role_specific_environment_variables_resolve(monkeypatch: pytest.MonkeyP
     assert settings.repair_model == "repair-model"
 
 
-def test_shared_model_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_shared_model_compatibility(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ANTHROPIC_API_KEY", "not-a-real-key")
     monkeypatch.setenv("ANTHROPIC_MODEL", "shared-model")
     monkeypatch.delenv("ANTHROPIC_TASK_MODEL", raising=False)
@@ -44,7 +47,7 @@ def test_shared_model_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
         task_model_override=None,
         repair_model_override=None,
         temperature=0.0,
-        repair_temperature=0.2,
+        repair_temperature=None,
         max_tokens=128,
         repair_max_tokens=512,
     )
@@ -64,7 +67,7 @@ def test_role_specific_models_override_shared(monkeypatch: pytest.MonkeyPatch) -
         task_model_override=None,
         repair_model_override=None,
         temperature=0.0,
-        repair_temperature=0.2,
+        repair_temperature=None,
         max_tokens=128,
         repair_max_tokens=512,
     )
@@ -85,7 +88,7 @@ def test_missing_model_configuration_fails_clearly(monkeypatch: pytest.MonkeyPat
             task_model_override=None,
             repair_model_override=None,
             temperature=0.0,
-            repair_temperature=0.2,
+            repair_temperature=None,
             max_tokens=128,
             repair_max_tokens=512,
         )
@@ -122,59 +125,54 @@ def test_anthropic_client_uses_repair_model_for_text_calls() -> None:
     result = client.complete_text(
         system_prompt="repair",
         prompt="Generate repair.",
-        temperature=0.2,
+        temperature=None,
         max_tokens=256,
     )
 
     assert sdk.calls[-1]["model"] == "repair-model"
+    assert "temperature" not in sdk.calls[-1]
     assert result.model_id == "repair-model"
 
 
-def test_fake_smoke_records_task_and_repair_models() -> None:
-    run_id = f"pytest-model-roles-{uuid.uuid4().hex}"
-    run_dir = Path("runs") / run_id
-
-    main(
-        [
-            "run-all",
-            "--smoke",
-            "--fake-model",
-            "--run-id",
-            run_id,
-            "--task-model",
-            "fake-task-role",
-            "--repair-model",
-            "fake-repair-role",
-        ]
+def test_single_shot_generation_uses_repair_client() -> None:
+    artifacts = load_artifacts(Path("agent"))
+    repair_client = RecordingRepairOnlyClient(artifacts)
+    candidate = generate_single_shot_candidate(
+        context=RepairContext(
+            diagnosis="Cancellation requests with billing words are misrouted.",
+            baseline_artifacts=artifacts,
+            optimize_train_cases=[],
+            optimize_val_cases=[],
+            failing_records=[],
+        ),
+        model_client=repair_client,
+        settings=ModelSettings(task_model="task-model", repair_model="repair-model"),
     )
 
-    manifest = json.loads((run_dir / "model_manifest.json").read_text(encoding="utf-8"))
-    assert manifest == {
-        "task_model": "fake-task-role",
-        "repair_model": "fake-repair-role",
-    }
-    for arm in ["baseline", "single_shot", "optimizer"]:
-        rows = [
-            json.loads(line)
-            for line in (run_dir / arm / "predictions.jsonl")
-            .read_text(encoding="utf-8")
-            .splitlines()
-        ]
-        assert rows
-        assert {row["prediction"]["model_id"] for row in rows} == {"fake-task-role"}
+    assert repair_client.text_calls == 1
+    assert candidate.model_id == "repair-model"
 
-    single_shot = json.loads(
-        (run_dir / "single_shot" / "candidate.json").read_text(encoding="utf-8")
+
+def test_evaluation_rollouts_use_task_client_only() -> None:
+    artifacts = load_artifacts(Path("agent"))
+    tools = load_tool_schemas(Path("agent"))
+    cases = load_split(Path("evals"), "optimize_train", limit=2)
+    task_client = RecordingTaskOnlyClient()
+
+    predictions, _metrics = evaluate_artifacts(
+        split="optimize_train",
+        cases=cases,
+        artifacts=artifacts,
+        base_tools=tools,
+        model_client=task_client,
+        settings=ModelSettings(task_model="task-model", repair_model="repair-model"),
     )
-    assert single_shot["model_id"] == "fake-repair-role"
-    candidates = [
-        json.loads(line)
-        for line in (run_dir / "optimizer" / "candidates.jsonl")
-        .read_text(encoding="utf-8")
-        .splitlines()
+
+    assert task_client.tool_calls == 2
+    assert [prediction.result.model_id for prediction in predictions] == [
+        "task-model",
+        "task-model",
     ]
-    assert candidates
-    assert {candidate["model_id"] for candidate in candidates} == {"fake-repair-role"}
 
 
 class RecordingAnthropic:
@@ -198,3 +196,77 @@ class RecordingAnthropic:
             content=content,
             usage=SimpleNamespace(input_tokens=3, output_tokens=4),
         )
+
+
+class RecordingRepairOnlyClient:
+    def __init__(self, artifacts: AgentArtifacts) -> None:
+        self.text_calls = 0
+        self._artifacts = artifacts
+
+    def complete_tool_call(
+        self,
+        *,
+        system_prompt: str,
+        tools: list[ToolSchema],
+        user_input: str,
+        temperature: float,
+        max_tokens: int,
+    ) -> AgentResult:
+        raise AssertionError("repair generation must not execute task rollouts")
+
+    def complete_text(
+        self,
+        *,
+        system_prompt: str,
+        prompt: str,
+        temperature: float | None,
+        max_tokens: int,
+    ) -> TextResult:
+        self.text_calls += 1
+        payload = {
+            "rationale": "clarify cancellation versus refund routing",
+            "system_prompt": self._artifacts.system_prompt,
+            "tool_descriptions": {},
+        }
+        return TextResult(
+            text=json.dumps(payload),
+            latency_ms=1.0,
+            input_tokens=1,
+            output_tokens=1,
+            model_id="repair-model",
+        )
+
+
+class RecordingTaskOnlyClient:
+    def __init__(self) -> None:
+        self.tool_calls = 0
+
+    def complete_tool_call(
+        self,
+        *,
+        system_prompt: str,
+        tools: list[ToolSchema],
+        user_input: str,
+        temperature: float,
+        max_tokens: int,
+    ) -> AgentResult:
+        self.tool_calls += 1
+        return AgentResult(
+            final_answer=None,
+            tool_name="cancel_subscription",
+            tool_args={"when": "end_of_billing_cycle"},
+            latency_ms=1.0,
+            input_tokens=1,
+            output_tokens=1,
+            model_id="task-model",
+        )
+
+    def complete_text(
+        self,
+        *,
+        system_prompt: str,
+        prompt: str,
+        temperature: float | None,
+        max_tokens: int,
+    ) -> TextResult:
+        raise AssertionError("task evaluation must not generate repair text")

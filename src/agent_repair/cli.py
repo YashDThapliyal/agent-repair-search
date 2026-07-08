@@ -2,18 +2,16 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 from pathlib import Path
 
 from agent_repair.anthropic_client import AnthropicModelClient
 from agent_repair.config import (
     ExperimentConfig,
-    ModelSettings,
     SearchBudgets,
     load_model_settings,
 )
-from agent_repair.fake_model import FakeModelClient
 from agent_repair.reporting import (
+    load_experiment_splits,
     make_run_id,
     prepare_run_dir,
     run_baseline_arm,
@@ -27,40 +25,50 @@ def main(argv: list[str] | None = None) -> None:
     parser = build_parser()
     args = parser.parse_args(argv)
     repo_root = Path.cwd()
-    settings = _settings(args)
+    if args.command == "compare":
+        if not args.run_id:
+            raise SystemExit("--run-id is required for compare")
+        _compare_existing(repo_root / "runs" / args.run_id)
+        return
+    settings = load_model_settings(
+        shared_model_override=args.model,
+        task_model_override=args.task_model,
+        repair_model_override=args.repair_model,
+        temperature=args.temperature,
+        repair_temperature=args.repair_temperature,
+        max_tokens=args.max_tokens,
+        repair_max_tokens=args.repair_max_tokens,
+    )
     config = ExperimentConfig(
         repo_root=repo_root,
         run_id=args.run_id or make_run_id("smoke" if args.smoke else "run"),
         smoke=args.smoke,
-        fake_model=args.fake_model,
-        optimize_limit=5 if args.smoke else args.optimize_limit,
-        heldout_limit=5 if args.smoke else args.heldout_limit,
-        regression_limit=5 if args.smoke else args.regression_limit,
+        optimize_train_limit=5 if args.smoke else args.optimize_train_limit,
+        optimize_val_limit=3 if args.smoke else args.optimize_val_limit,
+        heldout_limit=None if args.smoke else args.heldout_limit,
+        regression_limit=3 if args.smoke else args.regression_limit,
         regression_tolerance=args.regression_tolerance,
         model_settings=settings,
         budgets=SearchBudgets(
             max_candidates=2 if args.smoke else args.max_candidates,
             max_generations=1 if args.smoke else args.max_generations,
             max_reflection_calls=2 if args.smoke else args.max_reflection_calls,
-            max_eval_calls=30 if args.smoke else args.max_eval_calls,
+            max_eval_calls=12 if args.smoke else args.max_eval_calls,
             seed=args.seed,
         ),
     )
-    if args.command == "compare":
-        _compare_existing(repo_root / "runs" / args.run_id)
-        return
-    task_model_client = (
-        FakeModelClient(task_model=settings.task_model, repair_model=settings.repair_model)
-        if args.fake_model
-        else AnthropicModelClient(settings)
-    )
+    if args.optimizer != "gepa":
+        raise SystemExit("Only --optimizer gepa is supported.")
+    task_model_client = AnthropicModelClient(settings)
     repair_model_client = task_model_client
-    run_dir = prepare_run_dir(config)
+    run_dir = prepare_run_dir(config, optimizer_requested=args.optimizer)
+    splits = load_experiment_splits(config)
     baseline = run_baseline_arm(
         config=config,
         run_dir=run_dir,
         task_model_client=task_model_client,
         settings=settings,
+        splits=splits,
     )
     if args.command == "baseline":
         print(f"Wrote baseline run to {run_dir}")
@@ -72,6 +80,7 @@ def main(argv: list[str] | None = None) -> None:
         repair_model_client=repair_model_client,
         settings=settings,
         baseline=baseline,
+        splits=splits,
     )
     if args.command == "single-shot":
         print(f"Wrote single-shot run to {run_dir}")
@@ -83,6 +92,8 @@ def main(argv: list[str] | None = None) -> None:
         repair_model_client=repair_model_client,
         settings=settings,
         baseline=baseline,
+        splits=splits,
+        optimizer_requested=args.optimizer,
     )
     summary = write_comparison_report(
         run_dir=run_dir,
@@ -90,8 +101,9 @@ def main(argv: list[str] | None = None) -> None:
         single_shot=single_shot,
         optimizer=optimizer,
         regression_tolerance=config.regression_tolerance,
-        optimizer_name=search.optimizer_name,
+        search=search,
         settings=settings,
+        smoke=config.smoke,
     )
     print(f"Wrote comparison run to {run_dir}")
     print(json.dumps(summary["regression_gate"], indent=2, sort_keys=True))
@@ -105,7 +117,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--run-id")
     parser.add_argument("--smoke", action="store_true")
-    parser.add_argument("--fake-model", action="store_true")
+    parser.add_argument("--optimizer", choices=["gepa"], default="gepa")
     parser.add_argument("--model")
     parser.add_argument("--task-model")
     parser.add_argument("--repair-model")
@@ -118,7 +130,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--max-tokens", type=int, default=512)
     parser.add_argument("--repair-max-tokens", type=int, default=4096)
-    parser.add_argument("--optimize-limit", type=int)
+    parser.add_argument("--optimize-train-limit", type=int)
+    parser.add_argument("--optimize-val-limit", type=int)
     parser.add_argument("--heldout-limit", type=int)
     parser.add_argument("--regression-limit", type=int)
     parser.add_argument("--regression-tolerance", type=float, default=0.02)
@@ -128,40 +141,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-eval-calls", type=int, default=500)
     parser.add_argument("--seed", type=int, default=7)
     return parser
-
-
-def _settings(args: argparse.Namespace) -> ModelSettings:
-    if args.fake_model:
-        shared_model = args.model or os.environ.get("ANTHROPIC_MODEL")
-        task_model = (
-            args.task_model
-            or os.environ.get("ANTHROPIC_TASK_MODEL")
-            or shared_model
-            or "fake-task-model"
-        )
-        repair_model = (
-            args.repair_model
-            or os.environ.get("ANTHROPIC_REPAIR_MODEL")
-            or shared_model
-            or "fake-repair-model"
-        )
-        return ModelSettings(
-            task_model=task_model,
-            repair_model=repair_model,
-            temperature=args.temperature,
-            repair_temperature=args.repair_temperature,
-            max_tokens=args.max_tokens,
-            repair_max_tokens=args.repair_max_tokens,
-        )
-    return load_model_settings(
-        shared_model_override=args.model,
-        task_model_override=args.task_model,
-        repair_model_override=args.repair_model,
-        temperature=args.temperature,
-        repair_temperature=args.repair_temperature,
-        max_tokens=args.max_tokens,
-        repair_max_tokens=args.repair_max_tokens,
-    )
 
 
 def _compare_existing(run_dir: Path) -> None:

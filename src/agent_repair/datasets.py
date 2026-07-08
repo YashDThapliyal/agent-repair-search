@@ -8,7 +8,8 @@ from pathlib import Path
 from agent_repair.models import EvalCase, JSONObject, stable_json_hash
 
 SPLIT_FILES = {
-    "optimize": "optimize.jsonl",
+    "optimize_train": "optimize_train.jsonl",
+    "optimize_val": "optimize_val.jsonl",
     "heldout": "heldout.jsonl",
     "regression": "regression.jsonl",
 }

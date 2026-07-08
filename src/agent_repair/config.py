@@ -43,8 +43,8 @@ class ExperimentConfig:
     repo_root: Path
     run_id: str
     smoke: bool = False
-    fake_model: bool = False
-    optimize_limit: int | None = None
+    optimize_train_limit: int | None = None
+    optimize_val_limit: int | None = None
     heldout_limit: int | None = None
     regression_limit: int | None = None
     regression_tolerance: float = 0.02
@@ -56,8 +56,8 @@ class ExperimentConfig:
             "repo_root": str(self.repo_root),
             "run_id": self.run_id,
             "smoke": self.smoke,
-            "fake_model": self.fake_model,
-            "optimize_limit": self.optimize_limit,
+            "optimize_train_limit": self.optimize_train_limit,
+            "optimize_val_limit": self.optimize_val_limit,
             "heldout_limit": self.heldout_limit,
             "regression_limit": self.regression_limit,
             "regression_tolerance": self.regression_tolerance,
@@ -81,9 +81,7 @@ def load_model_settings(
     task_model = task_model_override or os.environ.get("ANTHROPIC_TASK_MODEL") or shared_model
     repair_model = repair_model_override or os.environ.get("ANTHROPIC_REPAIR_MODEL") or shared_model
     if not api_key:
-        raise ConfigurationError(
-            "ANTHROPIC_API_KEY is required for live runs. Use --fake-model for offline smoke."
-        )
+        raise ConfigurationError("ANTHROPIC_API_KEY is required for Anthropic-backed runs.")
     if not task_model:
         raise ConfigurationError(
             "ANTHROPIC_TASK_MODEL is required for task-agent calls, or set "

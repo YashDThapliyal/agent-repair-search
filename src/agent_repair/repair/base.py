@@ -10,7 +10,8 @@ from agent_repair.models import AgentArtifacts, EvalCase, JSONObject, ModelClien
 class RepairContext:
     diagnosis: str
     baseline_artifacts: AgentArtifacts
-    optimization_cases: list[EvalCase]
+    optimize_train_cases: list[EvalCase]
+    optimize_val_cases: list[EvalCase]
     failing_records: list[JSONObject]
     allowed_surfaces: tuple[str, ...] = ("system_prompt", "tool_descriptions")
 
@@ -22,7 +23,11 @@ class SearchResult:
     candidate_scores: dict[str, float]
     lineage: dict[str, str | None]
     optimizer_name: str
+    optimizer_requested: str
+    optimizer_actual: str
     budgets: JSONObject
+    gepa_version: str | None
+    gepa_reflection_lm: str | None
     repair_model_calls: int
     agent_eval_calls: int
     total_examples_evaluated: int

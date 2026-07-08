@@ -19,7 +19,8 @@ The system starts from:
 1. a small tool-using agent,
 2. a known/diagnosed failure mode,
 3. editable agent artifacts,
-4. an evaluation dataset split into optimization, held-out, and regression sets.
+4. an evaluation dataset split into optimization-train, optimization-validation,
+   held-out, and regression sets.
 
 It compares three experimental arms:
 
@@ -48,11 +49,11 @@ Editable agent artifacts
       ↓
 Generate candidate repairs
       ↓
-Evaluate on optimization split
+Evaluate on optimization-train split
       ↓
 Iterate/search over candidates
       ↓
-Select finalist
+Select finalist with optimization-validation
       ↓
 Evaluate on held-out split
       ↓
@@ -96,8 +97,9 @@ Implement exactly the following core scope:
 - Two editable artifact classes:
   - global system prompt,
   - tool descriptions.
-- Three eval splits:
-  - optimization/train,
+- Four eval splits:
+  - optimization-train,
+  - optimization-validation,
   - held-out,
   - regression.
 - Deterministic tool-call evaluators.
@@ -180,6 +182,10 @@ Required:
 
 ```text
 ANTHROPIC_API_KEY
+ANTHROPIC_TASK_MODEL
+ANTHROPIC_REPAIR_MODEL
+
+# Optional backward-compatible shared model:
 ANTHROPIC_MODEL
 ```
 
@@ -187,7 +193,8 @@ Rules:
 
 - Do not commit API keys.
 - Do not hardcode a model identifier in source code.
-- Require `ANTHROPIC_MODEL` at runtime or allow a CLI/config override.
+- Require a resolved task model and repair model at runtime, either through the
+  role-specific variables or the backward-compatible shared `ANTHROPIC_MODEL`.
 - `.env.example` may contain placeholders only.
 - Fail with a clear actionable error if required credentials/config are missing.
 - Centralize all Anthropic calls behind one small model-client abstraction.
@@ -198,13 +205,14 @@ Rules:
 
 ## 5.2 Model roles
 
-The same Anthropic model may be used for all roles in v0.1:
+Use separate resolved model roles:
 
-- student/agent inference,
-- single-shot repair generation,
-- reflection/candidate generation.
+- `ANTHROPIC_TASK_MODEL` for every customer-support agent rollout in every arm.
+- `ANTHROPIC_REPAIR_MODEL` for single-shot repair generation, GEPA candidate
+  proposals, and repair reflection/planning calls.
 
-The architecture should permit separate model settings later without requiring them now.
+`ANTHROPIC_MODEL` remains accepted only as a shared backward-compatible fallback
+when a role-specific variable is absent. Do not silently invent a model ID.
 
 ---
 
@@ -272,14 +280,16 @@ Do not let evaluation code depend directly on raw SDK response shapes.
 Commit three datasets:
 
 ```text
-evals/optimize.jsonl
+evals/optimize_train.jsonl
+evals/optimize_val.jsonl
 evals/heldout.jsonl
 evals/regression.jsonl
 ```
 
 Suggested total size for the initial public experiment:
 
-- optimization: 40–60 cases,
+- optimization-train: roughly 30–45 cases,
+- optimization-validation: roughly 10–20 cases,
 - held-out: 20–30 cases,
 - regression: 20–30 cases.
 
@@ -309,7 +319,8 @@ Not every row needs `failure_cluster` or `notes`, but IDs and expected behavior 
 
 This is critical.
 
-- The optimizer may use only the optimization split for candidate scoring/search.
+- The optimizer may use only `optimize_train` for repair feedback and
+  `optimize_val` for internal candidate selection.
 - Do not expose held-out expected labels to candidate generation or selection.
 - The held-out split is used only after candidate selection.
 - The regression split must cover unrelated valid behaviors, especially legitimate refund requests.
@@ -437,13 +448,14 @@ The search must:
 - select one finalist without consulting held-out labels,
 - evaluate the finalist on held-out and regression splits.
 
-Preferred optimizer path:
+Optimizer path:
 
-1. Use a current public GEPA implementation if its installed/public API integrates cleanly.
+1. Use the official public `gepa` package.
 2. Inspect the actual package/API rather than guessing function signatures.
-3. Pin the version used.
-4. Wrap it behind an internal `RepairOptimizer` protocol.
-5. If GEPA integration is blocked by incompatible APIs, implement a minimal documented evolutionary/reflection search as a fallback so the experiment remains runnable. Do not pretend the fallback is GEPA.
+3. Pin the version used through the project lockfile.
+4. Wrap it behind an internal adapter.
+5. If GEPA is unavailable or incompatible, fail clearly with an actionable error.
+   Do not introduce an alternate runtime optimizer path.
 
 The repository must clearly record which optimizer actually ran.
 
@@ -579,7 +591,7 @@ uv run agent-repair run-all
 Also support a cheap smoke mode:
 
 ```bash
-uv run agent-repair run-all --smoke
+uv run agent-repair run-all --optimizer gepa --smoke
 ```
 
 Smoke mode should use a very small subset and tiny search budget.
@@ -651,13 +663,13 @@ Prefer this shape unless implementation evidence justifies a small change:
 │           ├── __init__.py
 │           ├── base.py
 │           ├── single_shot.py
-│           ├── optimizer.py
 │           └── gepa_adapter.py
 ├── agent/
 │   ├── system_prompt.md
 │   └── tools.json
 ├── evals/
-│   ├── optimize.jsonl
+│   ├── optimize_train.jsonl
+│   ├── optimize_val.jsonl
 │   ├── heldout.jsonl
 │   └── regression.jsonl
 ├── experiments/
@@ -763,9 +775,10 @@ Cover:
 - diff generation,
 - baseline immutability.
 
-## 17.4 Smoke test
+## 17.4 Tests and smoke runs
 
-A smoke test must exercise the experiment pipeline without making expensive API calls by using a fake model client.
+Normal tests must avoid external API calls by using local stubs/spies at test
+boundaries. Do not expose a product/runtime model-simulation path.
 
 Live Anthropic integration tests must be opt-in, e.g.:
 
@@ -820,7 +833,7 @@ Hard rules:
 - No mention of LangSmith.
 - No unverified novelty claims.
 - No internal employer references.
-- No fake badges.
+- No placeholder badges.
 - No placeholder benchmark numbers presented as real.
 
 ---
@@ -954,7 +967,7 @@ When asked to implement the repository end-to-end:
 5. Run tests frequently.
 6. Surface blockers immediately, then continue on unblocked work.
 7. Never claim a live experiment succeeded without actually running it.
-8. If API credits or credentials are unavailable, complete the full offline implementation with fake-client tests and leave exact live-run commands.
+8. If API credits or credentials are unavailable, complete the full local implementation with stubbed tests and leave exact live-run commands.
 9. Do not stop after scaffolding.
 10. Continue until the definition of done is met or an external permission/credential blocker is genuinely unavoidable.
 
@@ -967,11 +980,11 @@ The repository is complete for v0.1 only when all of the following are true:
 - [ ] Git repository initialized on `main`.
 - [ ] `uv` project configured and lockfile committed.
 - [ ] Anthropic client abstraction implemented.
-- [ ] No model identifier hardcoded; `ANTHROPIC_MODEL` configurable.
+- [ ] No model identifier hardcoded; task and repair model roles configurable.
 - [ ] Synthetic tool-using agent implemented.
 - [ ] Five tool schemas implemented.
 - [ ] Baseline system prompt and intentionally ambiguous tool descriptions committed.
-- [ ] Optimization, held-out, and regression datasets committed.
+- [ ] Optimization-train, optimization-validation, held-out, and regression datasets committed.
 - [ ] Split overlap/leakage checks implemented.
 - [ ] Tool selection evaluator implemented and tested.
 - [ ] Argument evaluator implemented and tested.

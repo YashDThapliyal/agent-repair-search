@@ -1,19 +1,20 @@
 # Search for agent repairs. Validate the winner.
 
-Compare original, single-shot, and optimizer-backed repairs for tool-using agents with held-out and regression evaluation.
+Compare original, single-shot, and GEPA-backed repairs for tool-using agents with held-out and regression evaluation.
 
 This repository is a local-first research prototype for one question:
 
-> Given a diagnosed agent failure and issue-specific evals, does optimizer-backed candidate repair search outperform a single-shot LLM-proposed repair on held-out tool-calling behavior without introducing regressions?
+> Given a diagnosed agent failure and issue-specific evals, does GEPA-backed repair search outperform a single-shot LLM-proposed repair on final held-out tool-calling behavior without introducing regressions?
 
 ## Architecture
 
 ```text
 Diagnosed failure
   -> editable artifacts: system prompt + tool descriptions
-  -> optimization split search
-  -> finalist selected without held-out labels
-  -> held-out validation
+  -> optimize_train feedback
+  -> GEPA search with optimize_val selection
+  -> freeze single-shot and GEPA candidates
+  -> final held-out validation
   -> regression gate
   -> patch + per-case evidence
 ```
@@ -36,7 +37,7 @@ Install dependencies:
 uv sync
 ```
 
-Run all offline checks:
+Run checks:
 
 ```bash
 uv run ruff format --check .
@@ -44,48 +45,50 @@ uv run ruff check .
 uv run pytest
 ```
 
-Run the cheap offline smoke pipeline with a deterministic fake model:
-
-```bash
-uv run agent-repair run-all --smoke --fake-model
-```
-
-Run a live Anthropic-backed smoke experiment:
+Run a tiny live integration smoke. This uses GEPA and does not consume final held-out examples:
 
 ```bash
 export ANTHROPIC_API_KEY=...
 export ANTHROPIC_TASK_MODEL=claude-haiku-4-5-20251001
 export ANTHROPIC_REPAIR_MODEL=claude-sonnet-5
-uv run agent-repair run-all --smoke
+uv run agent-repair run-all --optimizer gepa --smoke
 ```
 
-Run the full comparison:
+Run the full comparison only when you are ready to spend the required model calls:
 
 ```bash
-uv run agent-repair run-all
+uv run agent-repair run-all --optimizer gepa
 ```
 
 ## Experiment Arms
 
 `baseline` evaluates the untouched artifacts in `agent/system_prompt.md` and `agent/tools.json`.
 
-`single-shot` asks Anthropic for exactly one repair using the diagnosis, optimization failures, current artifacts, and allowed edit surfaces.
+`single-shot` asks Anthropic for exactly one repair using the diagnosis, baseline editable artifacts, domain objective, and evidence from `optimize_train`.
 
-`optimizer` runs the internal `RepairOptimizer` interface. The current implementation is explicitly labeled `fallback_evolutionary_reflection`: it generates multiple repair candidates, scores them only on the optimization split, uses feedback for later candidates, records lineage, and selects one finalist before held-out or regression evaluation.
+`optimizer` invokes the official `gepa` package through `gepa.optimize_anything.optimize_anything`. The repository records `optimizer_requested`, `optimizer_actual`, `gepa_version`, GEPA reflection metadata, budgets, lineage, and candidate diffs. The optimizer arm fails rather than silently switching implementation if GEPA cannot run.
 
-All three arms execute eval cases with the same task model. The single-shot repair generator and optimizer reflection/mutation calls use the same repair model. `ANTHROPIC_MODEL` is still accepted as a backward-compatible shared fallback when a role-specific model variable is absent.
+All three arms execute eval cases with the same task model. Single-shot repair generation and GEPA proposal/reflection calls use the same repair model. `ANTHROPIC_MODEL` is still accepted as a backward-compatible shared fallback when a role-specific model variable is absent.
 
 ## Dataset Split Discipline
 
-Committed splits live in:
+Committed final splits live in:
 
 ```text
-evals/optimize.jsonl
+evals/optimize_train.jsonl
+evals/optimize_val.jsonl
 evals/heldout.jsonl
 evals/regression.jsonl
 ```
 
-The optimizer may use only `optimize.jsonl` for candidate scoring and selection. Held-out labels are used only after the baseline, single-shot candidate, and optimizer finalist are fixed. Regression cases cover legitimate refunds and unrelated support behaviors so a repair that over-corrects cancellation routing can fail the gate.
+The two optimization splits are derived deterministically from the original optimization examples:
+
+- `optimize_train`: repair evidence and GEPA evaluator feedback
+- `optimize_val`: internal GEPA candidate selection
+- `heldout`: final untouched evaluation only after candidates are frozen
+- `regression`: final unrelated-behavior preservation gate
+
+Final held-out and regression labels are never passed to GEPA or single-shot repair generation.
 
 Each run records split hashes in `runs/<run-id>/split_hashes.json`.
 
@@ -119,6 +122,7 @@ Each run writes a timestamped directory:
 runs/<run-id>/
 ├── config.json
 ├── environment.json
+├── model_manifest.json
 ├── split_hashes.json
 ├── baseline/
 ├── single_shot/
@@ -138,18 +142,19 @@ Per-case predictions and metrics are preserved so aggregate scores can be audite
 
 ## Results
 
-No live Anthropic result run is committed yet. The offline fake-model smoke command verifies wiring, report generation, candidate lineage, and the regression gate, but it is not benchmark evidence.
+No full benchmark result is committed yet. Smoke runs are integration evidence only and should not be interpreted as model-quality benchmark results.
 
-After a live run, use:
+After a run, inspect:
 
 ```bash
 uv run agent-repair compare --run-id <run-id>
 ```
 
-and inspect:
+and:
 
 ```text
 runs/<run-id>/report.md
+runs/<run-id>/optimizer/search.json
 runs/<run-id>/optimizer/diff.patch
 ```
 
@@ -162,26 +167,18 @@ uv sync
 export ANTHROPIC_API_KEY=...
 export ANTHROPIC_TASK_MODEL=claude-haiku-4-5-20251001
 export ANTHROPIC_REPAIR_MODEL=claude-sonnet-5
-uv run agent-repair run-all
-```
-
-Offline smoke reproduction:
-
-```bash
-uv sync
-uv run agent-repair run-all --smoke --fake-model
+uv run agent-repair run-all --optimizer gepa
 ```
 
 ## Limitations
 
-- The optimizer currently uses the documented fallback search, not a verified GEPA package integration.
 - The domain is synthetic and designed for inspectable repair-search experiments, not production support automation.
-- Normal tests do not call Anthropic or spend API credits.
-- Live result quality depends on the configured Anthropic model and budget settings.
+- Normal tests use local stubs/spies and do not call Anthropic or spend API credits.
+- Live result quality depends on the configured Anthropic models and budget settings.
+- Smoke mode is for integration only and intentionally avoids final held-out consumption.
 
 ## Roadmap
 
-- Add a verified GEPA adapter if its installed API cleanly supports this textual artifact search.
-- Commit a small representative live run when credentials and budget are available.
+- Run and commit a small representative live result when budget and credentials are available.
 - Add richer cost summaries when provider usage metadata is consistently exposed.
 - Expand regression coverage around refund and escalation edge cases.

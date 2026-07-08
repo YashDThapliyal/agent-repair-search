@@ -80,6 +80,10 @@ Current tool_descriptions:
 Optimization failures:
 {failures or "No failures were observed in the sampled optimization split."}
 
+Objective:
+Improve tool selection and argument correctness for optimize_train examples only.
+Do not rely on final heldout or regression labels.
+
 Return JSON with:
 - rationale: short explanation
 - system_prompt: full replacement system prompt

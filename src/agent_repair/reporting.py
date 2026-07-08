@@ -26,7 +26,7 @@ from agent_repair.models import (
 )
 from agent_repair.patches import unified_artifact_diff
 from agent_repair.repair.base import RepairContext, SearchResult
-from agent_repair.repair.optimizer import FallbackEvolutionaryOptimizer
+from agent_repair.repair.gepa_adapter import GepaRepairOptimizer, gepa_version
 from agent_repair.repair.single_shot import generate_single_shot_candidate
 
 DIAGNOSIS = (
@@ -40,9 +40,10 @@ DIAGNOSIS = (
 class ArmResult:
     name: str
     artifacts: AgentArtifacts
-    optimize_metrics: AggregateMetrics | None
+    optimize_train_metrics: AggregateMetrics
+    optimize_val_metrics: AggregateMetrics
     heldout_metrics: AggregateMetrics | None
-    regression_metrics: AggregateMetrics | None
+    regression_metrics: AggregateMetrics
     candidate: RepairCandidate | None = None
 
 
@@ -50,7 +51,7 @@ def make_run_id(prefix: str = "run") -> str:
     return f"{prefix}-{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}"
 
 
-def prepare_run_dir(config: ExperimentConfig) -> Path:
+def prepare_run_dir(config: ExperimentConfig, *, optimizer_requested: str) -> Path:
     run_dir = config.repo_root / "runs" / config.run_id
     run_dir.mkdir(parents=True, exist_ok=False)
     write_json(run_dir / "config.json", config.to_dict())
@@ -58,8 +59,12 @@ def prepare_run_dir(config: ExperimentConfig) -> Path:
         write_json(
             run_dir / "model_manifest.json",
             {
+                "optimizer_requested": optimizer_requested,
                 "task_model": config.model_settings.task_model,
                 "repair_model": config.model_settings.repair_model,
+                "gepa_reflection_lm": (
+                    f"custom_anthropic_client:{config.model_settings.repair_model}"
+                ),
             },
         )
     write_json(
@@ -68,12 +73,27 @@ def prepare_run_dir(config: ExperimentConfig) -> Path:
             "python": sys.version,
             "platform": platform.platform(),
             "implementation": platform.python_implementation(),
+            "gepa_version": gepa_version(),
         },
     )
     evals_dir = config.repo_root / "evals"
     validate_all_splits(evals_dir)
     write_json(run_dir / "split_hashes.json", split_hashes(evals_dir))
     return run_dir
+
+
+def load_experiment_splits(config: ExperimentConfig) -> dict[str, list[EvalCase]]:
+    evals_dir = config.repo_root / "evals"
+    return {
+        "optimize_train": load_split(
+            evals_dir, "optimize_train", limit=config.optimize_train_limit
+        ),
+        "optimize_val": load_split(evals_dir, "optimize_val", limit=config.optimize_val_limit),
+        "heldout": []
+        if config.smoke
+        else load_split(evals_dir, "heldout", limit=config.heldout_limit),
+        "regression": load_split(evals_dir, "regression", limit=config.regression_limit),
+    }
 
 
 def evaluate_artifacts(
@@ -85,6 +105,8 @@ def evaluate_artifacts(
     model_client: ModelClient,
     settings: ModelSettings,
 ) -> tuple[list[CasePrediction], AggregateMetrics]:
+    if not cases:
+        raise ValueError(f"cannot evaluate empty split {split}")
     agent = CustomerSupportAgent(
         artifacts=artifacts,
         base_tools=base_tools,
@@ -105,52 +127,24 @@ def run_baseline_arm(
     run_dir: Path,
     task_model_client: ModelClient,
     settings: ModelSettings,
+    splits: dict[str, list[EvalCase]],
 ) -> ArmResult:
     agent_dir = config.repo_root / "agent"
     artifacts = load_artifacts(agent_dir)
     base_tools = load_tool_schemas(agent_dir)
-    evals_dir = config.repo_root / "evals"
-    optimize_cases = load_split(evals_dir, "optimize", limit=config.optimize_limit)
-    heldout_cases = load_split(evals_dir, "heldout", limit=config.heldout_limit)
-    regression_cases = load_split(evals_dir, "regression", limit=config.regression_limit)
     arm_dir = run_dir / "baseline"
     arm_dir.mkdir(exist_ok=True)
     write_artifact_snapshot(arm_dir / "artifacts.json", artifacts)
-
-    opt_predictions, opt_metrics = evaluate_artifacts(
-        split="optimize",
-        cases=optimize_cases,
+    return _evaluate_arm(
+        name="baseline",
+        arm_dir=arm_dir,
         artifacts=artifacts,
+        candidate=None,
+        splits=splits,
         base_tools=base_tools,
-        model_client=task_model_client,
+        task_model_client=task_model_client,
         settings=settings,
     )
-    held_predictions, held_metrics = evaluate_artifacts(
-        split="heldout",
-        cases=heldout_cases,
-        artifacts=artifacts,
-        base_tools=base_tools,
-        model_client=task_model_client,
-        settings=settings,
-    )
-    reg_predictions, reg_metrics = evaluate_artifacts(
-        split="regression",
-        cases=regression_cases,
-        artifacts=artifacts,
-        base_tools=base_tools,
-        model_client=task_model_client,
-        settings=settings,
-    )
-    _write_predictions(
-        arm_dir,
-        {
-            "optimize": opt_predictions,
-            "heldout": held_predictions,
-            "regression": reg_predictions,
-        },
-    )
-    write_json(arm_dir / "metrics.json", _metrics_bundle(opt_metrics, held_metrics, reg_metrics))
-    return ArmResult("baseline", artifacts, opt_metrics, held_metrics, reg_metrics)
 
 
 def run_single_shot_arm(
@@ -161,18 +155,16 @@ def run_single_shot_arm(
     repair_model_client: ModelClient,
     settings: ModelSettings,
     baseline: ArmResult,
+    splits: dict[str, list[EvalCase]],
 ) -> ArmResult:
     agent_dir = config.repo_root / "agent"
     base_tools = load_tool_schemas(agent_dir)
-    evals_dir = config.repo_root / "evals"
-    optimize_cases = load_split(evals_dir, "optimize", limit=config.optimize_limit)
-    heldout_cases = load_split(evals_dir, "heldout", limit=config.heldout_limit)
-    regression_cases = load_split(evals_dir, "regression", limit=config.regression_limit)
-    failing = _failing_records(run_dir / "baseline" / "predictions.jsonl", split="optimize")
+    failing = _failing_records(run_dir / "baseline" / "predictions.jsonl", split="optimize_train")
     context = RepairContext(
         diagnosis=DIAGNOSIS,
         baseline_artifacts=baseline.artifacts,
-        optimization_cases=optimize_cases,
+        optimize_train_cases=splits["optimize_train"],
+        optimize_val_cases=splits["optimize_val"],
         failing_records=failing,
     )
     candidate = generate_single_shot_candidate(
@@ -186,15 +178,14 @@ def run_single_shot_arm(
     (arm_dir / "diff.patch").write_text(
         unified_artifact_diff(baseline.artifacts, candidate.artifacts), encoding="utf-8"
     )
-    return _evaluate_candidate_arm(
+    return _evaluate_arm(
         name="single_shot",
         arm_dir=arm_dir,
+        artifacts=candidate.artifacts,
         candidate=candidate,
-        optimize_cases=optimize_cases,
-        heldout_cases=heldout_cases,
-        regression_cases=regression_cases,
+        splits=splits,
         base_tools=base_tools,
-        model_client=task_model_client,
+        task_model_client=task_model_client,
         settings=settings,
     )
 
@@ -207,29 +198,33 @@ def run_optimizer_arm(
     repair_model_client: ModelClient,
     settings: ModelSettings,
     baseline: ArmResult,
+    splits: dict[str, list[EvalCase]],
+    optimizer_requested: str,
 ) -> tuple[ArmResult, SearchResult]:
+    if optimizer_requested != "gepa":
+        raise ValueError("Only optimizer='gepa' is supported.")
     agent_dir = config.repo_root / "agent"
     base_tools = load_tool_schemas(agent_dir)
-    evals_dir = config.repo_root / "evals"
-    optimize_cases = load_split(evals_dir, "optimize", limit=config.optimize_limit)
-    heldout_cases = load_split(evals_dir, "heldout", limit=config.heldout_limit)
-    regression_cases = load_split(evals_dir, "regression", limit=config.regression_limit)
-    failing = _failing_records(run_dir / "baseline" / "predictions.jsonl", split="optimize")
-    optimizer = FallbackEvolutionaryOptimizer(
+    failing = _failing_records(run_dir / "baseline" / "predictions.jsonl", split="optimize_train")
+    optimizer = GepaRepairOptimizer(
         base_tools=base_tools,
         settings=settings,
         budgets=config.budgets,
+        run_dir=str(run_dir / "optimizer" / "gepa_run"),
     )
     search = optimizer.search(
         context=RepairContext(
             diagnosis=DIAGNOSIS,
             baseline_artifacts=baseline.artifacts,
-            optimization_cases=optimize_cases,
+            optimize_train_cases=splits["optimize_train"],
+            optimize_val_cases=splits["optimize_val"],
             failing_records=failing,
         ),
         task_model_client=task_model_client,
         repair_model_client=repair_model_client,
     )
+    if search.optimizer_actual != "gepa":
+        raise RuntimeError("Requested GEPA but official GEPA did not execute.")
     arm_dir = run_dir / "optimizer"
     arm_dir.mkdir(exist_ok=True)
     write_jsonl(
@@ -237,7 +232,7 @@ def run_optimizer_arm(
         [
             {
                 **candidate.to_dict(),
-                "optimization_score": search.candidate_scores[candidate.candidate_id],
+                "optimization_score": search.candidate_scores.get(candidate.candidate_id),
                 "repair_model": candidate.model_id,
             }
             for candidate in search.candidates
@@ -248,7 +243,11 @@ def run_optimizer_arm(
     write_json(
         arm_dir / "search.json",
         {
+            "optimizer_requested": search.optimizer_requested,
+            "optimizer_actual": search.optimizer_actual,
             "optimizer_name": search.optimizer_name,
+            "gepa_version": search.gepa_version,
+            "gepa_reflection_lm": search.gepa_reflection_lm,
             "budgets": search.budgets,
             "repair_model_calls": search.repair_model_calls,
             "agent_eval_calls": search.agent_eval_calls,
@@ -262,15 +261,14 @@ def run_optimizer_arm(
     (arm_dir / "diff.patch").write_text(
         unified_artifact_diff(baseline.artifacts, search.finalist.artifacts), encoding="utf-8"
     )
-    arm = _evaluate_candidate_arm(
+    arm = _evaluate_arm(
         name="optimizer",
         arm_dir=arm_dir,
+        artifacts=search.finalist.artifacts,
         candidate=search.finalist,
-        optimize_cases=optimize_cases,
-        heldout_cases=heldout_cases,
-        regression_cases=regression_cases,
+        splits=splits,
         base_tools=base_tools,
-        model_client=task_model_client,
+        task_model_client=task_model_client,
         settings=settings,
     )
     return arm, search
@@ -283,94 +281,131 @@ def write_comparison_report(
     single_shot: ArmResult,
     optimizer: ArmResult,
     regression_tolerance: float,
-    optimizer_name: str,
+    search: SearchResult,
     settings: ModelSettings,
+    smoke: bool,
 ) -> JSONObject:
-    baseline_reg = _require_metric(baseline.regression_metrics)
-    optimizer_reg = _require_metric(optimizer.regression_metrics)
-    gate_threshold = baseline_reg.mean_score - regression_tolerance
-    gate_passed = optimizer_reg.mean_score >= gate_threshold
-    summary = {
-        "optimizer_name": optimizer_name,
+    gate_threshold = baseline.regression_metrics.mean_score - regression_tolerance
+    gate_passed = optimizer.regression_metrics.mean_score >= gate_threshold
+    summary: JSONObject = {
+        "optimizer_requested": search.optimizer_requested,
+        "optimizer_actual": search.optimizer_actual,
+        "optimizer_name": search.optimizer_name,
+        "gepa_version": search.gepa_version,
+        "gepa_reflection_lm": search.gepa_reflection_lm,
+        "smoke": smoke,
         "models": {
             "task_model": settings.task_model,
             "repair_model": settings.repair_model,
         },
+        "search_budget": search.budgets,
+        "call_accounting": {
+            "optimizer_repair_model_calls": search.repair_model_calls,
+            "optimizer_task_model_calls": search.agent_eval_calls,
+            "optimizer_candidate_count": len(search.candidates),
+        },
         "regression_gate": {
             "passed": gate_passed,
-            "baseline_regression_score": baseline_reg.mean_score,
-            "optimizer_regression_score": optimizer_reg.mean_score,
+            "baseline_regression_score": baseline.regression_metrics.mean_score,
+            "optimizer_regression_score": optimizer.regression_metrics.mean_score,
             "tolerance": regression_tolerance,
             "threshold": gate_threshold,
         },
         "arms": {
             arm.name: {
-                "optimize": _metric_summary(arm.optimize_metrics),
+                "optimize_train": _metric_summary(arm.optimize_train_metrics),
+                "optimize_val": _metric_summary(arm.optimize_val_metrics),
                 "heldout": _metric_summary(arm.heldout_metrics),
                 "regression": _metric_summary(arm.regression_metrics),
             }
             for arm in [baseline, single_shot, optimizer]
         },
-        "heldout_deltas": {
-            "optimizer_vs_original": _require_metric(optimizer.heldout_metrics).mean_score
-            - _require_metric(baseline.heldout_metrics).mean_score,
-            "optimizer_vs_single_shot": _require_metric(optimizer.heldout_metrics).mean_score
-            - _require_metric(single_shot.heldout_metrics).mean_score,
-            "single_shot_vs_original": _require_metric(single_shot.heldout_metrics).mean_score
-            - _require_metric(baseline.heldout_metrics).mean_score,
-        },
     }
+    if (
+        not smoke
+        and baseline.heldout_metrics
+        and single_shot.heldout_metrics
+        and optimizer.heldout_metrics
+    ):
+        summary["heldout_deltas"] = {
+            "optimizer_vs_original": optimizer.heldout_metrics.mean_score
+            - baseline.heldout_metrics.mean_score,
+            "optimizer_vs_single_shot": optimizer.heldout_metrics.mean_score
+            - single_shot.heldout_metrics.mean_score,
+            "single_shot_vs_original": single_shot.heldout_metrics.mean_score
+            - baseline.heldout_metrics.mean_score,
+        }
     write_json(run_dir / "comparison.json", summary)
     (run_dir / "report.md").write_text(_render_report(summary), encoding="utf-8")
     return summary
 
 
-def _evaluate_candidate_arm(
+def _evaluate_arm(
     *,
     name: str,
     arm_dir: Path,
-    candidate: RepairCandidate,
-    optimize_cases: list[EvalCase],
-    heldout_cases: list[EvalCase],
-    regression_cases: list[EvalCase],
+    artifacts: AgentArtifacts,
+    candidate: RepairCandidate | None,
+    splits: dict[str, list[EvalCase]],
     base_tools: list[ToolSchema],
-    model_client: ModelClient,
+    task_model_client: ModelClient,
     settings: ModelSettings,
 ) -> ArmResult:
-    opt_predictions, opt_metrics = evaluate_artifacts(
-        split="optimize",
-        cases=optimize_cases,
-        artifacts=candidate.artifacts,
+    train_predictions, train_metrics = evaluate_artifacts(
+        split="optimize_train",
+        cases=splits["optimize_train"],
+        artifacts=artifacts,
         base_tools=base_tools,
-        model_client=model_client,
+        model_client=task_model_client,
         settings=settings,
     )
-    held_predictions, held_metrics = evaluate_artifacts(
-        split="heldout",
-        cases=heldout_cases,
-        artifacts=candidate.artifacts,
+    val_predictions, val_metrics = evaluate_artifacts(
+        split="optimize_val",
+        cases=splits["optimize_val"],
+        artifacts=artifacts,
         base_tools=base_tools,
-        model_client=model_client,
+        model_client=task_model_client,
         settings=settings,
     )
+    held_predictions: list[CasePrediction] = []
+    held_metrics = None
+    if splits["heldout"]:
+        held_predictions, held_metrics = evaluate_artifacts(
+            split="heldout",
+            cases=splits["heldout"],
+            artifacts=artifacts,
+            base_tools=base_tools,
+            model_client=task_model_client,
+            settings=settings,
+        )
     reg_predictions, reg_metrics = evaluate_artifacts(
         split="regression",
-        cases=regression_cases,
-        artifacts=candidate.artifacts,
+        cases=splits["regression"],
+        artifacts=artifacts,
         base_tools=base_tools,
-        model_client=model_client,
+        model_client=task_model_client,
         settings=settings,
     )
     _write_predictions(
         arm_dir,
         {
-            "optimize": opt_predictions,
-            "heldout": held_predictions,
+            "optimize_train": train_predictions,
+            "optimize_val": val_predictions,
+            **({"heldout": held_predictions} if held_predictions else {}),
             "regression": reg_predictions,
         },
     )
-    write_json(arm_dir / "metrics.json", _metrics_bundle(opt_metrics, held_metrics, reg_metrics))
-    return ArmResult(name, candidate.artifacts, opt_metrics, held_metrics, reg_metrics, candidate)
+    metrics = {
+        "optimize_train": train_metrics.to_dict(),
+        "optimize_val": val_metrics.to_dict(),
+        "regression": reg_metrics.to_dict(),
+    }
+    if held_metrics is not None:
+        metrics["heldout"] = held_metrics.to_dict()
+    write_json(arm_dir / "metrics.json", metrics)
+    return ArmResult(
+        name, artifacts, train_metrics, val_metrics, held_metrics, reg_metrics, candidate
+    )
 
 
 def _write_predictions(path: Path, predictions_by_split: dict[str, list[CasePrediction]]) -> None:
@@ -381,10 +416,6 @@ def _write_predictions(path: Path, predictions_by_split: dict[str, list[CasePred
             record["split"] = split
             rows.append(record)
     write_jsonl(path / "predictions.jsonl", rows)
-
-
-def _metrics_bundle(*metrics: AggregateMetrics) -> JSONObject:
-    return {metric.split: metric.to_dict() for metric in metrics}
 
 
 def _metric_summary(metric: AggregateMetrics | None) -> JSONObject | None:
@@ -399,12 +430,6 @@ def _metric_summary(metric: AggregateMetrics | None) -> JSONObject | None:
         "by_category": metric.by_category,
         "by_failure_cluster": metric.by_failure_cluster,
     }
-
-
-def _require_metric(metric: AggregateMetrics | None) -> AggregateMetrics:
-    if metric is None:
-        raise ValueError("required metric missing")
-    return metric
 
 
 def _failing_records(path: Path, *, split: str) -> list[JSONObject]:
@@ -435,27 +460,29 @@ def _render_report(summary: JSONObject) -> str:
     lines = [
         "# Agent Repair Search Report",
         "",
-        f"Optimizer actually run: `{summary['optimizer_name']}`",
+        f"Smoke run: `{summary['smoke']}`",
+        f"Optimizer requested: `{summary['optimizer_requested']}`",
+        f"Optimizer actually executed: `{summary['optimizer_actual']}`",
+        f"GEPA version: `{summary['gepa_version']}`",
+        f"GEPA reflection LM: `{summary['gepa_reflection_lm']}`",
         f"Task model: `{models['task_model']}`",
         f"Repair model: `{models['repair_model']}`",
         "",
-        "| Arm | Optimize score | Held-out score | Regression score | Held-out pass rate |",
+        "| Arm | Train score | Val score | Held-out score | Regression score |",
         "| --- | ---: | ---: | ---: | ---: |",
     ]
     for name in ["baseline", "single_shot", "optimizer"]:
         arm = arms[name]
         assert isinstance(arm, dict)
-        optimize = arm["optimize"]
+        train = arm["optimize_train"]
+        val = arm["optimize_val"]
         heldout = arm["heldout"]
         regression = arm["regression"]
-        assert (
-            isinstance(optimize, dict)
-            and isinstance(heldout, dict)
-            and isinstance(regression, dict)
-        )
+        assert isinstance(train, dict) and isinstance(val, dict) and isinstance(regression, dict)
+        heldout_score = "not consumed" if heldout is None else f"{heldout['mean_score']:.3f}"
         lines.append(
-            f"| {name} | {optimize['mean_score']:.3f} | {heldout['mean_score']:.3f} | "
-            f"{regression['mean_score']:.3f} | {heldout['pass_rate']:.3f} |"
+            f"| {name} | {train['mean_score']:.3f} | {val['mean_score']:.3f} | "
+            f"{heldout_score} | {regression['mean_score']:.3f} |"
         )
     gate = summary["regression_gate"]
     assert isinstance(gate, dict)
@@ -468,14 +495,13 @@ def _render_report(summary: JSONObject) -> str:
             f"Baseline regression score: `{gate['baseline_regression_score']:.3f}`",
             f"Optimizer regression score: `{gate['optimizer_regression_score']:.3f}`",
             f"Tolerance: `{gate['tolerance']:.3f}`",
-            "",
-            "## Held-out Deltas",
-            "",
         ]
     )
-    deltas = summary["heldout_deltas"]
-    assert isinstance(deltas, dict)
-    for key, value in deltas.items():
-        lines.append(f"- {key}: `{value:.3f}`")
+    if "heldout_deltas" in summary:
+        lines.extend(["", "## Held-out Deltas", ""])
+        deltas = summary["heldout_deltas"]
+        assert isinstance(deltas, dict)
+        for key, value in deltas.items():
+            lines.append(f"- {key}: `{value:.3f}`")
     lines.append("")
     return "\n".join(lines)

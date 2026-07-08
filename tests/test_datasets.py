@@ -9,14 +9,15 @@ from agent_repair.datasets import load_split, split_hashes, validate_all_splits
 
 def test_committed_jsonl_valid() -> None:
     evals_dir = Path("evals")
-    assert len(load_split(evals_dir, "optimize")) == 50
+    assert len(load_split(evals_dir, "optimize_train")) == 35
+    assert len(load_split(evals_dir, "optimize_val")) == 15
     assert len(load_split(evals_dir, "heldout")) == 25
     assert len(load_split(evals_dir, "regression")) == 25
     validate_all_splits(evals_dir)
 
 
 def test_duplicate_ids_detected(tmp_path: Path) -> None:
-    for name in ["optimize", "heldout", "regression"]:
+    for name in ["optimize_train", "optimize_val", "heldout", "regression"]:
         (tmp_path / f"{name}.jsonl").write_text(
             '{"id":"dup","input":"one","expected_tool":"search_customer",'
             '"expected_args":{"query":"one"},"category":"search"}\n',
@@ -27,20 +28,24 @@ def test_duplicate_ids_detected(tmp_path: Path) -> None:
 
 
 def test_malformed_expected_args_rejected(tmp_path: Path) -> None:
-    (tmp_path / "optimize.jsonl").write_text(
+    (tmp_path / "optimize_train.jsonl").write_text(
         '{"id":"bad","input":"x","expected_tool":"search_customer",'
         '"expected_args":[],"category":"search"}\n',
         encoding="utf-8",
     )
     with pytest.raises(ValueError, match="expected_args"):
-        load_split(tmp_path, "optimize")
+        load_split(tmp_path, "optimize_train")
 
 
 def test_split_overlap_detection(tmp_path: Path) -> None:
     rows = {
-        "optimize": (
+        "optimize_train": (
             '{"id":"a","input":"Find account alpha","expected_tool":"search_customer",'
             '"expected_args":{"query":"alpha"},"category":"search"}\n'
+        ),
+        "optimize_val": (
+            '{"id":"d","input":"Find account beta","expected_tool":"search_customer",'
+            '"expected_args":{"query":"beta"},"category":"search"}\n'
         ),
         "heldout": (
             '{"id":"b","input":"Find account alpha","expected_tool":"search_customer",'
