@@ -45,12 +45,18 @@ uv run ruff check .
 uv run pytest
 ```
 
-Run a tiny live integration smoke. This uses GEPA and does not consume final held-out examples:
+Configuration is read from `os.environ` only. This project does **not** auto-load
+`.env` files. Export the variables in your shell (or `set -a; source .env; set +a`):
 
 ```bash
 export ANTHROPIC_API_KEY=...
 export ANTHROPIC_TASK_MODEL=claude-haiku-4-5-20251001
 export ANTHROPIC_REPAIR_MODEL=claude-sonnet-5
+```
+
+Run a tiny live integration smoke. This uses GEPA and does not consume final held-out examples:
+
+```bash
 uv run agent-repair run-all --optimizer gepa --smoke
 ```
 
@@ -60,13 +66,45 @@ Run the full comparison only when you are ready to spend the required model call
 uv run agent-repair run-all --optimizer gepa
 ```
 
+## Commands and two-phase protocol
+
+The experiment is split into a search phase and a final-evaluation phase so that
+final data can never influence candidate construction.
+
+- `baseline` — evaluate the untouched artifacts on the optimization splits only.
+- `single-shot` — generate one repair and evaluate it on the optimization splits only.
+- `optimize` — run the full **search phase** (original + single-shot + GEPA), freeze
+  the three candidates, persist search artifacts and candidate hashes, then stop. It
+  never loads or evaluates held-out or regression data.
+- `finalize --run-id <id>` — the **final-evaluation phase**: verify the frozen candidate
+  hashes and dataset hashes, then evaluate the frozen candidates on held-out and
+  regression, apply the regression gate, and write the comparison report.
+- `run-all` — convenience command that runs the search phase and the finalization phase
+  in one invocation.
+- `compare --run-id <id>` — print a run's `comparison.json`.
+
+Search-only, then finalize:
+
+```bash
+uv run agent-repair optimize --optimizer gepa --run-id my-run
+uv run agent-repair finalize --run-id my-run
+```
+
 ## Experiment Arms
 
 `baseline` evaluates the untouched artifacts in `agent/system_prompt.md` and `agent/tools.json`.
 
 `single-shot` asks Anthropic for exactly one repair using the diagnosis, baseline editable artifacts, domain objective, and evidence from `optimize_train`.
 
-`optimizer` invokes the official `gepa` package through `gepa.optimize_anything.optimize_anything`. The repository records `optimizer_requested`, `optimizer_actual`, `gepa_version`, GEPA reflection metadata, budgets, lineage, and candidate diffs. The optimizer arm fails rather than silently switching implementation if GEPA cannot run.
+`optimizer` runs **GEPA search with a custom Anthropic-backed repair proposer**: the
+official `gepa` package drives the search loop through
+`gepa.optimize_anything.optimize_anything`, while candidate proposals come from a custom
+proposer that calls the Anthropic repair model. This is not vanilla GEPA with a built-in
+proposer, and the provenance is recorded explicitly: runs persist `optimizer_requested`,
+`optimizer_actual`, `proposer_type` (`custom_anthropic_repair_proposer`), `gepa_version`,
+the GEPA reflection LM identifier, budgets, lineage, and candidate diffs. The optimizer
+arm fails rather than silently switching implementation if GEPA cannot run, and GEPA
+result shapes are validated before conversion.
 
 All three arms execute eval cases with the same task model. Single-shot repair generation and GEPA proposal/reflection calls use the same repair model. `ANTHROPIC_MODEL` is still accepted as a backward-compatible shared fallback when a role-specific model variable is absent.
 
@@ -88,9 +126,26 @@ The two optimization splits are derived deterministically from the original opti
 - `heldout`: final untouched evaluation only after candidates are frozen
 - `regression`: final unrelated-behavior preservation gate
 
-Final held-out and regression labels are never passed to GEPA or single-shot repair generation.
+Final held-out and regression labels are never passed to GEPA or single-shot repair
+generation. Structurally, the search phase loads only `optimize_train` and `optimize_val`;
+held-out and regression are loaded only in the finalization phase, after all three
+candidates are frozen and their artifact hashes are recorded in
+`runs/<run-id>/candidate_hashes.json`.
 
 Each run records split hashes in `runs/<run-id>/split_hashes.json`.
+
+### Held-out consumption guard
+
+To prevent silent iterative development against the final held-out set, the first
+finalization records the consumption in a local registry at
+`runs/final_eval_registry.json` (keyed by held-out dataset hash and the three candidate
+hashes). Re-running finalization against a **different** candidate set for an already
+consumed held-out set is blocked by default. Exact reproduction of a prior consumption
+(same dataset and identical candidate hashes) is allowed and marked as a reproduction.
+Reusing held-out for a new candidate set requires the explicit `--allow-heldout-reuse`
+flag, which prints a warning and marks the run `heldout_pristine = false` in both the
+run metadata and the report. Smoke runs never consume held-out and never touch the
+registry.
 
 ## Metrics
 
@@ -122,14 +177,21 @@ Each run writes a timestamped directory:
 runs/<run-id>/
 ├── config.json
 ├── environment.json
-├── model_manifest.json
+├── model_manifest.json          # includes proposer_type
 ├── split_hashes.json
+├── candidate_hashes.json        # frozen original/single_shot/gepa artifact hashes
 ├── baseline/
+│   ├── metrics.json             # optimize_train + optimize_val (search phase)
+│   └── final_metrics.json       # heldout + regression (finalization phase)
 ├── single_shot/
 ├── optimizer/
-├── comparison.json
+├── comparison.json              # includes heldout_pristine and proposer_type
 └── report.md
 ```
+
+Search-phase predictions/metrics (`predictions.jsonl`, `metrics.json`) and
+finalization-phase predictions/metrics (`final_predictions.jsonl`, `final_metrics.json`)
+are written separately per arm so the two phases stay auditable and distinct.
 
 Candidate patches are stored as unified diffs:
 

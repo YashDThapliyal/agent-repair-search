@@ -23,9 +23,15 @@ from agent_repair.models import (
 from agent_repair.repair.base import RepairContext, RepairOptimizer, SearchResult
 
 OPTIMIZER_NAME = "gepa"
+PROPOSER_TYPE = "custom_anthropic_repair_proposer"
 SYSTEM_PROMPT_KEY = "system_prompt"
 TOOL_PREFIX = "tool."
 TOOL_SUFFIX = ".description"
+
+
+class GepaResultShapeError(RuntimeError):
+    """Raised when the object returned by GEPA does not match expected positional shapes."""
+
 
 OBJECTIVE = """Improve tool-calling accuracy for the customer-support agent.
 
@@ -148,6 +154,7 @@ class GepaRepairOptimizer(RepairOptimizer):
             ),
         )
 
+        _validate_gepa_result(result)
         best = _ensure_candidate_dict(result.best_candidate)
         finalist_artifacts = gepa_candidate_to_artifacts(
             best,
@@ -190,6 +197,7 @@ class GepaRepairOptimizer(RepairOptimizer):
             optimizer_name=OPTIMIZER_NAME,
             optimizer_requested=OPTIMIZER_NAME,
             optimizer_actual=OPTIMIZER_NAME,
+            proposer_type=PROPOSER_TYPE,
             budgets=self.budgets.to_dict(),
             gepa_version=gepa_version(),
             gepa_reflection_lm=f"custom_anthropic_client:{self.settings.repair_model}",
@@ -278,9 +286,51 @@ def _parse_component_updates(
 
 
 def _ensure_candidate_dict(candidate: str | dict[str, str]) -> dict[str, str]:
-    if isinstance(candidate, str):
-        raise TypeError("agent repair GEPA candidate must be a dict[str, str]")
+    if not isinstance(candidate, dict):
+        raise GepaResultShapeError("agent repair GEPA candidate must be a dict[str, str]")
     return candidate
+
+
+def _safe_len(value: Any) -> object:
+    try:
+        return len(value)
+    except TypeError:
+        return "n/a"
+
+
+def _validate_gepa_result(result: Any) -> None:
+    """Fail loudly if GEPA's positional result arrays are inconsistent.
+
+    Several result fields are consumed positionally (candidates, val_aggregate_scores,
+    parents) and by index (best_idx). Silent truncation via zip would hide a real GEPA
+    API drift, so validate the shapes explicitly before conversion.
+    """
+    candidates = getattr(result, "candidates", None)
+    if not isinstance(candidates, list) or not candidates:
+        raise GepaResultShapeError(
+            f"GEPA returned no usable candidate list (got {type(candidates).__name__})"
+        )
+    count = len(candidates)
+    for idx, candidate in enumerate(candidates):
+        if not isinstance(candidate, dict):
+            raise GepaResultShapeError(
+                f"GEPA candidate at index {idx} is {type(candidate).__name__}, expected dict"
+            )
+    scores = getattr(result, "val_aggregate_scores", None)
+    if not isinstance(scores, list) or len(scores) != count:
+        raise GepaResultShapeError(
+            f"GEPA val_aggregate_scores length {_safe_len(scores)} != candidate count {count}"
+        )
+    best_idx = getattr(result, "best_idx", None)
+    if not isinstance(best_idx, int) or isinstance(best_idx, bool) or not 0 <= best_idx < count:
+        raise GepaResultShapeError(
+            f"GEPA best_idx {best_idx!r} is out of range for {count} candidates"
+        )
+    parents = getattr(result, "parents", None)
+    if parents is not None and (not isinstance(parents, list) or len(parents) != count):
+        raise GepaResultShapeError(
+            f"GEPA parents length {_safe_len(parents)} != candidate count {count}"
+        )
 
 
 def _parent_candidate_id(

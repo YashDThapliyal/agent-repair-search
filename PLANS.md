@@ -87,3 +87,33 @@
 - Installed API inspected: `gepa.optimize_anything.optimize_anything`, `GEPAConfig`, `EngineConfig`, and `ReflectionConfig`.
 - Runtime custom optimizer and runtime model-simulation path have been removed.
 - Validation commands were blocked after the first GEPA test pass by the environment usage-limit approval gate; rerun `uv sync`, `uv run ruff format .`, `uv run ruff format --check .`, `uv run ruff check .`, and `uv run pytest` once the gate resets.
+
+## Corrective Pass 2 - Methodological And Reliability Hardening
+
+### Phase 0 audit (verified from code before editing)
+
+- Staged state: the GEPA migration was present in the working tree but **unstaged** (empty index), not staged. Committed as one checkpoint (`feat: integrate GEPA search and isolate optimization splits`).
+- Prior `run-all` ordering: baseline evaluated all splits (including held-out and regression) inside the same arm function that also generated candidates; held-out was touched before single-shot and GEPA finalists were frozen.
+- Prior `optimize` behavior: `optimize` fell through the shared pipeline identically to `run-all`, so it also consumed held-out and regression.
+- Held-out access points: `run-all`/`optimize` each re-evaluated held-out on every invocation with no guard against repeated consumption.
+- Regression access points: regression was loaded alongside held-out in each arm; used only for the gate, but final-gate timing was not separated from search.
+- GEPA result assumptions: `val_aggregate_scores`, `candidates`, and `parents` were consumed positionally with no shape validation; `best_idx` was used without a range check.
+- Temperature: repair text calls could omit temperature, but task tool-calls always sent it.
+- Proposer provenance: the run used official GEPA with a custom Anthropic proposer, but `proposer_type` was not recorded, so provenance was ambiguous.
+
+### Corrective milestones (this pass)
+
+- [x] Commit the working-tree GEPA migration as its own checkpoint.
+- [x] Split reporting into an explicit search phase (`optimize_train`/`optimize_val` only) and a finalization phase (held-out/regression on frozen candidates). Freeze candidate hashes to `candidate_hashes.json` before any final evaluation.
+- [x] Make `optimize` search-only and add a `finalize --run-id` command that verifies frozen candidate hashes and dataset hashes before consuming final data.
+- [x] Add a held-out consumption registry (`runs/final_eval_registry.json`) that blocks silent reuse; `--allow-heldout-reuse` overrides and marks the run non-pristine.
+- [x] Validate GEPA result shapes (`GepaResultShapeError`) before conversion, including `best_idx` range and positional array lengths.
+- [x] Support optional temperature across both task and repair Anthropic calls.
+- [x] Record `proposer_type = custom_anthropic_repair_proposer` in the manifest, search metadata, comparison, and report.
+- [x] Document `.env` non-auto-loading and reject zero-size required evaluation splits at the CLI.
+- [x] Add tests for search/final isolation, the held-out guard, GEPA shape validation, temperature omission, and CLI limits.
+
+### Offline validation note
+
+- `uv run ruff format --check .`, `uv run ruff check .`, and `uv run pytest` pass (58 tests).
+- Offline end-to-end verification is provided by `tests/test_pipeline_isolation.py`, which drives the real reporting pipeline with in-process stub clients. A runtime `--fake-model` CLI flag was intentionally **not** reintroduced: `AGENTS.md` section 17.4 forbids a product/runtime model-simulation path, and the migration deliberately removed `fake_model.py`. The stub-driven integration test provides the equivalent offline coverage without violating that contract.

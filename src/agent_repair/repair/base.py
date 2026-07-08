@@ -25,6 +25,7 @@ class SearchResult:
     optimizer_name: str
     optimizer_requested: str
     optimizer_actual: str
+    proposer_type: str
     budgets: JSONObject
     gepa_version: str | None
     gepa_reflection_lm: str | None
