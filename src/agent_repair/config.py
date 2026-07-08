@@ -21,6 +21,9 @@ class ModelSettings:
     repair_max_tokens: int = 4096
     max_retries: int = 3
     retry_base_seconds: float = 0.5
+    # "any" forces the task model to emit exactly one tool call (correct for a
+    # single-step tool-router eval); "auto" lets it choose whether to call a tool.
+    tool_choice: str = "any"
 
     def to_dict(self) -> JSONObject:
         return asdict(self)

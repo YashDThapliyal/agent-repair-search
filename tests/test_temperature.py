@@ -71,3 +71,19 @@ def test_repair_path_omits_temperature_when_none() -> None:
     client, sdk = _client()
     _text_call(client, None)
     assert "temperature" not in sdk.calls[-1]
+
+
+def test_task_path_forces_tool_choice_any_by_default() -> None:
+    client, sdk = _client()
+    _tool_call(client, 0.0)
+    assert sdk.calls[-1]["tool_choice"] == {"type": "any"}
+
+
+def test_task_path_omits_tool_choice_when_auto() -> None:
+    sdk = RecordingAnthropic()
+    settings = ModelSettings(
+        task_model="task-model", repair_model="repair-model", tool_choice="auto"
+    )
+    client = AnthropicModelClient(settings, client=sdk)  # type: ignore[arg-type]
+    _tool_call(client, 0.0)
+    assert "tool_choice" not in sdk.calls[-1]

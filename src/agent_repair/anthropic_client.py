@@ -44,6 +44,8 @@ class AnthropicModelClient(ModelClient):
             }
             if temperature is not None:
                 request["temperature"] = temperature
+            if self.settings.tool_choice and self.settings.tool_choice != "auto":
+                request["tool_choice"] = {"type": self.settings.tool_choice}
             return self._client.messages.create(**request)
 
         started = time.perf_counter()
