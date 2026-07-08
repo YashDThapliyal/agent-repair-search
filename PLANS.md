@@ -127,3 +127,26 @@
 ### Remote
 
 - Public repository created and pushed: `https://github.com/YashDThapliyal/agent-repair-search` (`main` tracks `origin/main`).
+
+## Corrective Pass 3 - Scenario Viability And Multi-Scenario Harness
+
+### Phase 0 audit
+
+- Original research question: given a diagnosed agent failure and issue-specific evals, does iterative GEPA-backed repair search outperform a single-shot LLM repair on unseen tool-calling behavior without regressing unrelated behavior?
+- Current scenario limitations: a single hard-coded scenario (5 tools, one binary cancel-vs-refund confusion). The prior smoke suggested the target failure may be easy for the task model; difficulty must be measured by baseline characterization, not by whether GEPA wins.
+- Current tool inventory: search_customer, lookup_subscription, cancel_subscription, issue_refund, escalate_to_human.
+- Development split composition (pre-change): 35 optimize_train, 15 optimize_val (heavily target-weighted); 25 heldout; 25 regression.
+- Slice metadata: derivable deterministically from expected_tool + failure_cluster (target_cancel_billing, plain_cancellation, legitimate_refund, customer_search, subscription_lookup, escalation).
+- Abstraction level (pre-change): none; single scenario baked into `agent/` + `evals/`.
+
+### Phase 1 regression audit
+
+- The prior live smoke consumed regression IDs `reg-refund-001/002/003` with the real task model (proven from `runs/live-gepa-integration-smoke/*/final_predictions.jsonl`).
+- Offline stub tests touched regression/heldout only via stub clients in temporary repos (no real model, isolated registry); heldout was never seen by a real model.
+- Decision: split the 25 regression cases deterministically (per-expected_tool, first ceil(0.4*n) in file order) into `regression_dev` (12, includes the 3 consumed) and `regression_final` (13, frozen and never evaluated). Development runs (smoke, characterization) use regression_dev; only a real final run uses regression_final.
+
+### Phases 2-4 implemented
+
+- Versioned scenario abstraction under `scenarios/<id>/` with `scenario.json` (editable/frozen surfaces, slices, target slice). Existing scenario preserved as `cancel_refund_sanity` with original case IDs. `--scenario` selects a scenario (default cancel_refund_sanity).
+- `characterize` command: baseline-only evaluation on optimize_train + optimize_val (+ regression_dev), with per-tool confusion matrix, per-slice metrics, failure IDs; never calls the repair model, never runs GEPA, never loads heldout or regression_final.
+- Predeclared viability gate (`viability.py`) with configurable thresholds (target_failure_slice_tsa_high=0.90, minimum_non_target_tsa=0.75, minimum_overall_score=0.50) classifying TOO_EASY / VIABLE_FOCUSED_REPAIR / BROADLY_BROKEN / TARGET_FAILURE_ABSENT. Thresholds are persisted; the classification never depends on optimizer outcomes.

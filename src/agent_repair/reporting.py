@@ -35,6 +35,8 @@ from agent_repair.registry import (
 from agent_repair.repair.base import RepairContext, SearchResult
 from agent_repair.repair.gepa_adapter import PROPOSER_TYPE, GepaRepairOptimizer, gepa_version
 from agent_repair.repair.single_shot import generate_single_shot_candidate
+from agent_repair.scenarios import Scenario, load_scenario
+from agent_repair.viability import ViabilityThresholds, classify
 
 DIAGNOSIS = (
     "Cancellation requests that mention money, billing, charges, invoices, payments, "
@@ -51,6 +53,14 @@ ARM_OPTIMIZER = "optimizer"
 HASH_ORIGINAL = "original"
 HASH_SINGLE_SHOT = "single_shot"
 HASH_GEPA = "gepa"
+
+
+def scenario_root(config: ExperimentConfig) -> Path:
+    return config.repo_root / "scenarios" / config.scenario_id
+
+
+def load_scenario_for(config: ExperimentConfig) -> Scenario:
+    return load_scenario(config.repo_root, config.scenario_id)
 
 
 # ---------------------------------------------------------------------------
@@ -104,12 +114,15 @@ def prepare_run_dir(config: ExperimentConfig, *, optimizer_requested: str) -> Pa
     run_dir = config.repo_root / "runs" / config.run_id
     run_dir.mkdir(parents=True, exist_ok=False)
     write_json(run_dir / "config.json", config.to_dict())
+    scenario = load_scenario_for(config)
     if config.model_settings is not None:
         write_json(
             run_dir / "model_manifest.json",
             {
                 "optimizer_requested": optimizer_requested,
                 "proposer_type": PROPOSER_TYPE,
+                "scenario_id": scenario.scenario_id,
+                "scenario_version": scenario.version,
                 "task_model": config.model_settings.task_model,
                 "repair_model": config.model_settings.repair_model,
                 "gepa_reflection_lm": (
@@ -126,9 +139,9 @@ def prepare_run_dir(config: ExperimentConfig, *, optimizer_requested: str) -> Pa
             "gepa_version": gepa_version(),
         },
     )
-    evals_dir = config.repo_root / "evals"
-    validate_all_splits(evals_dir)
-    write_json(run_dir / "split_hashes.json", split_hashes(evals_dir))
+    root = scenario.root
+    validate_all_splits(root)
+    write_json(run_dir / "split_hashes.json", split_hashes(root))
     return run_dir
 
 
@@ -138,12 +151,10 @@ def load_search_splits(config: ExperimentConfig) -> dict[str, list[EvalCase]]:
     Held-out and regression are deliberately not loaded here so that no search or
     repair-generation code path can access final-evaluation data.
     """
-    evals_dir = config.repo_root / "evals"
+    root = scenario_root(config)
     return {
-        "optimize_train": load_split(
-            evals_dir, "optimize_train", limit=config.optimize_train_limit
-        ),
-        "optimize_val": load_split(evals_dir, "optimize_val", limit=config.optimize_val_limit),
+        "optimize_train": load_split(root, "optimize_train", limit=config.optimize_train_limit),
+        "optimize_val": load_split(root, "optimize_val", limit=config.optimize_val_limit),
     }
 
 
@@ -151,14 +162,22 @@ def load_final_splits(config: ExperimentConfig) -> dict[str, list[EvalCase]]:
     """Load ONLY the final-evaluation splits, used after candidates are frozen.
 
     In smoke mode the held-out split is intentionally left empty so that a smoke run
-    never consumes final held-out data.
+    never consumes final held-out data, and the development regression split
+    (regression_dev) is used instead of the frozen regression_final gate.
     """
-    evals_dir = config.repo_root / "evals"
-    heldout = [] if config.smoke else load_split(evals_dir, "heldout", limit=config.heldout_limit)
+    root = scenario_root(config)
+    heldout = [] if config.smoke else load_split(root, "heldout", limit=config.heldout_limit)
     return {
         "heldout": heldout,
-        "regression": load_split(evals_dir, "regression", limit=config.regression_limit),
+        "regression": load_split(
+            root, regression_split_name(config), limit=config.regression_limit
+        ),
     }
+
+
+def regression_split_name(config: ExperimentConfig) -> str:
+    """Development runs use regression_dev; only a real final run uses regression_final."""
+    return "regression_dev" if config.smoke else "regression_final"
 
 
 # ---------------------------------------------------------------------------
@@ -294,7 +313,7 @@ def run_baseline_only(
     settings: ModelSettings,
     search_splits: dict[str, list[EvalCase]],
 ) -> SearchArm:
-    base_tools = load_tool_schemas(config.repo_root / "agent")
+    base_tools = load_tool_schemas(scenario_root(config))
     return _baseline_search_arm(
         config=config,
         run_dir=run_dir,
@@ -314,7 +333,7 @@ def run_single_shot_only(
     settings: ModelSettings,
     search_splits: dict[str, list[EvalCase]],
 ) -> SearchArm:
-    base_tools = load_tool_schemas(config.repo_root / "agent")
+    base_tools = load_tool_schemas(scenario_root(config))
     _baseline, baseline_artifacts, failing = _baseline_search_arm(
         config=config,
         run_dir=run_dir,
@@ -346,7 +365,7 @@ def _baseline_search_arm(
     search_splits: dict[str, list[EvalCase]],
     base_tools: list[ToolSchema],
 ) -> tuple[SearchArm, AgentArtifacts, list[JSONObject]]:
-    baseline_artifacts = load_artifacts(config.repo_root / "agent")
+    baseline_artifacts = load_artifacts(scenario_root(config))
     baseline_dir = run_dir / ARM_ORIGINAL
     baseline_dir.mkdir(exist_ok=True)
     write_artifact_snapshot(baseline_dir / "artifacts.json", baseline_artifacts)
@@ -418,8 +437,7 @@ def run_search_phase(
 ) -> SearchPhaseResult:
     if optimizer_requested != "gepa":
         raise ValueError("Only optimizer='gepa' is supported.")
-    agent_dir = config.repo_root / "agent"
-    base_tools = load_tool_schemas(agent_dir)
+    base_tools = load_tool_schemas(scenario_root(config))
 
     # --- Original artifacts ---
     baseline, baseline_artifacts, failing = _baseline_search_arm(
@@ -589,15 +607,15 @@ def run_finalization_phase(
     search_arms: dict[str, dict[str, JSONObject]],
     allow_heldout_reuse: bool,
 ) -> JSONObject:
-    base_tools = load_tool_schemas(config.repo_root / "agent")
-    evals_dir = config.repo_root / "evals"
+    base_tools = load_tool_schemas(scenario_root(config))
+    evals_root = scenario_root(config)
 
     # --- Held-out consumption guard (only when held-out is actually consumed) ---
     heldout_pristine = True
     heldout_note = "held-out not consumed (smoke mode)"
     heldout_reused = False
     if final_splits["heldout"]:
-        dataset_hash = split_hashes(evals_dir)["heldout"]
+        dataset_hash = split_hashes(evals_root)["heldout"]
         reg_path = registry_path(config.repo_root / "runs")
         decision = decide_consumption(
             load_registry(reg_path),
@@ -661,6 +679,197 @@ def run_finalization_phase(
         heldout_reused=heldout_reused,
         heldout_note=heldout_note,
     )
+
+
+# ---------------------------------------------------------------------------
+# Baseline-only scenario characterization (no repair model, no GEPA)
+# ---------------------------------------------------------------------------
+def run_characterization(
+    *,
+    config: ExperimentConfig,
+    run_dir: Path,
+    task_model_client: ModelClient,
+    settings: ModelSettings,
+    thresholds: ViabilityThresholds,
+    include_regression_dev: bool = True,
+) -> JSONObject:
+    """Evaluate baseline artifacts on development splits only and classify viability.
+
+    Never loads held-out or regression_final, never calls the repair model, never runs
+    GEPA. Slices are assigned deterministically from dataset metadata.
+    """
+    scenario = load_scenario_for(config)
+    base_tools = load_tool_schemas(scenario.root)
+    artifacts = load_artifacts(scenario.root)
+
+    eval_splits: dict[str, list[EvalCase]] = {
+        "optimize_train": load_split(
+            scenario.root, "optimize_train", limit=config.optimize_train_limit
+        ),
+        "optimize_val": load_split(scenario.root, "optimize_val", limit=config.optimize_val_limit),
+    }
+    if include_regression_dev:
+        eval_splits["regression_dev"] = load_split(
+            scenario.root, "regression_dev", limit=config.regression_limit
+        )
+
+    predictions: list[CasePrediction] = []
+    split_metrics: dict[str, JSONObject] = {}
+    predictions_by_split: dict[str, list[CasePrediction]] = {}
+    for split, cases in eval_splits.items():
+        preds, metrics = evaluate_artifacts(
+            split=split,
+            cases=cases,
+            artifacts=artifacts,
+            base_tools=base_tools,
+            model_client=task_model_client,
+            settings=settings,
+        )
+        predictions.extend(preds)
+        predictions_by_split[split] = preds
+        split_metrics[split] = _metric_summary(metrics) or {}
+    _write_predictions(run_dir / "characterization_predictions.jsonl", predictions_by_split)
+
+    overall = _composite_mean(predictions)
+    tsa_overall = _tsa(predictions)
+    arg_overall = _arg_accuracy(predictions)
+    by_slice = _slice_metrics(predictions, scenario)
+    confusion = _confusion_matrix(predictions)
+    failure_ids = [p.case.id for p in predictions if not p.eval_result.passed]
+
+    target = scenario.target_slice
+    target_preds = [p for p in predictions if scenario.slice_of(p.case) == target]
+    non_target_preds = [p for p in predictions if scenario.slice_of(p.case) != target]
+    assessment = classify(
+        overall_score=overall,
+        target_slice=target,
+        target_slice_tsa=_tsa(target_preds),
+        target_slice_cases=len(target_preds),
+        non_target_tsa=_tsa(non_target_preds),
+        non_target_cases=len(non_target_preds),
+        thresholds=thresholds,
+    )
+
+    summary: JSONObject = {
+        "scenario_id": scenario.scenario_id,
+        "scenario_version": scenario.version,
+        "task_model": settings.task_model,
+        "used_repair_model": False,
+        "ran_gepa": False,
+        "splits_evaluated": list(eval_splits),
+        "heldout_consumed": False,
+        "regression_final_consumed": False,
+        "overall_score": overall,
+        "tool_selection_accuracy": tsa_overall,
+        "argument_accuracy": arg_overall,
+        "failure_count": len(failure_ids),
+        "failure_ids": failure_ids,
+        "per_split": split_metrics,
+        "per_slice": by_slice,
+        "confusion_matrix": confusion,
+        "viability": assessment.to_dict(),
+    }
+    write_json(run_dir / "characterization.json", summary)
+    (run_dir / "characterization.md").write_text(
+        _render_characterization(summary), encoding="utf-8"
+    )
+    return summary
+
+
+def _composite_mean(predictions: list[CasePrediction]) -> float:
+    if not predictions:
+        return 0.0
+    return sum(p.eval_result.total_score for p in predictions) / len(predictions)
+
+
+def _tsa(predictions: list[CasePrediction]) -> float | None:
+    if not predictions:
+        return None
+    return sum(p.eval_result.tool_selection_score for p in predictions) / len(predictions)
+
+
+def _arg_accuracy(predictions: list[CasePrediction]) -> float | None:
+    if not predictions:
+        return None
+    return sum(p.eval_result.argument_accuracy_score for p in predictions) / len(predictions)
+
+
+def _slice_metrics(predictions: list[CasePrediction], scenario: Scenario) -> dict[str, JSONObject]:
+    grouped: dict[str, list[CasePrediction]] = {}
+    for p in predictions:
+        grouped.setdefault(scenario.slice_of(p.case), []).append(p)
+    output: dict[str, JSONObject] = {}
+    for name, preds in grouped.items():
+        output[name] = {
+            "cases": len(preds),
+            "tool_selection_accuracy": _tsa(preds),
+            "argument_accuracy": _arg_accuracy(preds),
+            "mean_score": _composite_mean(preds),
+            "pass_rate": sum(1 for p in preds if p.eval_result.passed) / len(preds),
+            "failure_ids": [p.case.id for p in preds if not p.eval_result.passed],
+        }
+    return dict(sorted(output.items()))
+
+
+def _confusion_matrix(predictions: list[CasePrediction]) -> dict[str, JSONObject]:
+    matrix: dict[str, dict[str, int]] = {}
+    for p in predictions:
+        expected = p.case.expected_tool
+        predicted = p.result.tool_name or "none"
+        row = matrix.setdefault(expected, {})
+        row[predicted] = row.get(predicted, 0) + 1
+    return {k: dict(sorted(v.items())) for k, v in sorted(matrix.items())}
+
+
+def _render_characterization(summary: JSONObject) -> str:
+    viability = summary["viability"]
+    assert isinstance(viability, dict)
+    per_slice = summary["per_slice"]
+    assert isinstance(per_slice, dict)
+    lines = [
+        "# Scenario Characterization (baseline-only, development data)",
+        "",
+        f"Scenario: `{summary['scenario_id']}` v`{summary['scenario_version']}`",
+        f"Task model: `{summary['task_model']}`",
+        "Repair model used: `False` · GEPA run: `False`",
+        f"Held-out consumed: `{summary['heldout_consumed']}` · "
+        f"regression_final consumed: `{summary['regression_final_consumed']}`",
+        "",
+        f"Overall composite: `{summary['overall_score']:.3f}` · "
+        f"TSA: `{summary['tool_selection_accuracy']:.3f}` · "
+        f"Arg acc: `{summary['argument_accuracy']:.3f}` · "
+        f"Failures: `{summary['failure_count']}`",
+        "",
+        f"## Viability: `{viability['classification']}`",
+        "",
+        f"{viability['reason']}",
+        "",
+        f"- target slice `{viability['target_slice']}`: "
+        f"TSA `{_fmt(viability['target_slice_tsa'])}` over {viability['target_slice_cases']} cases",
+        f"- non-target: TSA `{_fmt(viability['non_target_tsa'])}` "
+        f"over {viability['non_target_cases']} cases",
+        "",
+        "## Per-slice",
+        "",
+        "| Slice | Cases | TSA | Arg acc | Pass rate |",
+        "| --- | ---: | ---: | ---: | ---: |",
+    ]
+    for name, metrics in per_slice.items():
+        assert isinstance(metrics, dict)
+        lines.append(
+            f"| {name} | {metrics['cases']} | {_fmt(metrics['tool_selection_accuracy'])} | "
+            f"{_fmt(metrics['argument_accuracy'])} | {_fmt(metrics['pass_rate'])} |"
+        )
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _fmt(value: object) -> str:
+    if value is None:
+        return "n/a"
+    if isinstance(value, (int, float)):
+        return f"{value:.3f}"
+    return str(value)
 
 
 # ---------------------------------------------------------------------------

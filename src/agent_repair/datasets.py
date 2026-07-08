@@ -6,20 +6,16 @@ from difflib import SequenceMatcher
 from pathlib import Path
 
 from agent_repair.models import EvalCase, JSONObject, stable_json_hash
-
-SPLIT_FILES = {
-    "optimize_train": "optimize_train.jsonl",
-    "optimize_val": "optimize_val.jsonl",
-    "heldout": "heldout.jsonl",
-    "regression": "regression.jsonl",
-}
+from agent_repair.scenarios import ALL_SPLITS
 
 
-def load_split(evals_dir: Path, split: str, *, limit: int | None = None) -> list[EvalCase]:
-    filename = SPLIT_FILES.get(split)
-    if filename is None:
-        raise ValueError(f"unknown split {split!r}")
-    cases = load_jsonl(evals_dir / filename)
+def split_filename(split: str) -> str:
+    return f"{split}.jsonl"
+
+
+def load_split(scenario_root: Path, split: str, *, limit: int | None = None) -> list[EvalCase]:
+    path = scenario_root / split_filename(split)
+    cases = load_jsonl(path)
     validate_cases(cases, split)
     return cases[:limit] if limit is not None else cases
 
@@ -53,11 +49,16 @@ def validate_cases(cases: list[EvalCase], split_name: str) -> None:
             raise ValueError(f"{case.id} expected_args must be an object")
 
 
-def validate_all_splits(evals_dir: Path, *, near_duplicate_threshold: float = 0.96) -> None:
-    splits = {name: load_split(evals_dir, name) for name in SPLIT_FILES}
+def validate_all_splits(
+    scenario_root: Path,
+    *,
+    splits: tuple[str, ...] = ALL_SPLITS,
+    near_duplicate_threshold: float = 0.96,
+) -> None:
+    loaded = {name: load_split(scenario_root, name) for name in splits}
     ids: dict[str, str] = {}
     normalized_inputs: dict[str, str] = {}
-    for split, cases in splits.items():
+    for split, cases in loaded.items():
         for case in cases:
             if case.id in ids:
                 raise ValueError(f"case id {case.id} appears in both {ids[case.id]} and {split}")
@@ -69,11 +70,11 @@ def validate_all_splits(evals_dir: Path, *, near_duplicate_threshold: float = 0.
                 )
             normalized_inputs[normalized] = case.id
 
-    split_names = list(splits)
+    split_names = list(loaded)
     for idx, left_name in enumerate(split_names):
         for right_name in split_names[idx + 1 :]:
-            for left in splits[left_name]:
-                for right in splits[right_name]:
+            for left in loaded[left_name]:
+                for right in loaded[right_name]:
                     if _near_duplicate(left.input, right.input, near_duplicate_threshold):
                         raise ValueError(
                             "near-duplicate across splits: "
@@ -81,10 +82,10 @@ def validate_all_splits(evals_dir: Path, *, near_duplicate_threshold: float = 0.
                         )
 
 
-def split_hashes(evals_dir: Path) -> dict[str, str]:
+def split_hashes(scenario_root: Path, *, splits: tuple[str, ...] = ALL_SPLITS) -> dict[str, str]:
     output: dict[str, str] = {}
-    for split in SPLIT_FILES:
-        cases = load_split(evals_dir, split)
+    for split in splits:
+        cases = load_split(scenario_root, split)
         output[split] = stable_json_hash([case.to_dict() for case in cases])
     return output
 

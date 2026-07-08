@@ -1,0 +1,13 @@
+{"category": "refund", "expected_args": {"reason": "duplicate_charge"}, "expected_tool": "issue_refund", "id": "reg-refund-005", "input": "My invoice shows two yearly fees on the same day. Return the extra payment."}
+{"category": "refund", "expected_args": {"reason": "service_issue"}, "expected_tool": "issue_refund", "id": "reg-refund-006", "input": "We could not access exports for a week and want an account credit."}
+{"category": "refund", "expected_args": {"reason": "accidental_purchase"}, "expected_tool": "issue_refund", "id": "reg-refund-007", "input": "Reverse the accidental add-on purchase from this morning."}
+{"category": "refund", "expected_args": {"reason": "policy_exception"}, "expected_tool": "issue_refund", "id": "reg-refund-008", "input": "I missed the refund deadline while hospitalized; can you make an exception?"}
+{"category": "lookup", "expected_args": {"lookup": "trial_status"}, "expected_tool": "lookup_subscription", "id": "reg-lookup-011", "input": "Am I still on a trial or did it convert?"}
+{"category": "lookup", "expected_args": {"lookup": "plan"}, "expected_tool": "lookup_subscription", "id": "reg-lookup-012", "input": "Which subscription tier is attached to my account?"}
+{"category": "search", "expected_args": {"query": "Riley Chen"}, "expected_tool": "search_customer", "id": "reg-search-015", "input": "Search profiles for Riley Chen."}
+{"category": "search", "expected_args": {"query": "workspace northstar"}, "expected_tool": "search_customer", "id": "reg-search-016", "input": "Pull up the Northstar workspace account."}
+{"category": "escalation", "expected_args": {"reason": "safety"}, "expected_tool": "escalate_to_human", "id": "reg-escalate-019", "input": "A user is threatening self-harm in our support inbox; escalate this now."}
+{"category": "escalation", "expected_args": {"reason": "abuse"}, "expected_tool": "escalate_to_human", "id": "reg-escalate-020", "input": "The account owner is sending abusive threats to your support team."}
+{"category": "cancellation", "expected_args": {"when": "immediately"}, "expected_tool": "cancel_subscription", "id": "reg-cancel-023", "input": "Close my paid account today."}
+{"category": "cancellation", "expected_args": {"when": "end_of_billing_cycle"}, "expected_tool": "cancel_subscription", "id": "reg-cancel-024", "input": "Please let my subscription expire after the prepaid month."}
+{"category": "lookup", "expected_args": {"lookup": "billing_cadence"}, "expected_tool": "lookup_subscription", "id": "reg-lookup-025", "input": "Is this account billed monthly or annually?"}

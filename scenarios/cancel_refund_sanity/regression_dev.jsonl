@@ -1,0 +1,12 @@
+{"category": "refund", "expected_args": {"reason": "duplicate_charge"}, "expected_tool": "issue_refund", "id": "reg-refund-001", "input": "Refund one of the two charges from March; they are exact duplicates."}
+{"category": "refund", "expected_args": {"reason": "service_issue"}, "expected_tool": "issue_refund", "id": "reg-refund-002", "input": "The service was down during our launch week, so credit us for the outage."}
+{"category": "refund", "expected_args": {"reason": "accidental_purchase"}, "expected_tool": "issue_refund", "id": "reg-refund-003", "input": "I clicked upgrade accidentally and need the payment reversed."}
+{"category": "refund", "expected_args": {"reason": "policy_exception"}, "expected_tool": "issue_refund", "id": "reg-refund-004", "input": "Please grant a courtesy refund even though the standard window passed."}
+{"category": "lookup", "expected_args": {"lookup": "status"}, "expected_tool": "lookup_subscription", "id": "reg-lookup-009", "input": "Tell me whether the subscription is currently active."}
+{"category": "lookup", "expected_args": {"lookup": "renewal_date"}, "expected_tool": "lookup_subscription", "id": "reg-lookup-010", "input": "Find the date my plan will renew."}
+{"category": "search", "expected_args": {"query": "mira@example.net"}, "expected_tool": "search_customer", "id": "reg-search-013", "input": "Look up the customer record for mira@example.net."}
+{"category": "search", "expected_args": {"query": "customer C-8842"}, "expected_tool": "search_customer", "id": "reg-search-014", "input": "Find customer C-8842 in the system."}
+{"category": "escalation", "expected_args": {"reason": "legal"}, "expected_tool": "escalate_to_human", "id": "reg-escalate-017", "input": "This is a legal demand about your data terms, and I need a human response."}
+{"category": "escalation", "expected_args": {"reason": "chargeback"}, "expected_tool": "escalate_to_human", "id": "reg-escalate-018", "input": "My bank has already started a chargeback for this payment."}
+{"category": "cancellation", "expected_args": {"when": "immediately"}, "expected_tool": "cancel_subscription", "id": "reg-cancel-021", "input": "Cancel the subscription immediately."}
+{"category": "cancellation", "expected_args": {"when": "end_of_billing_cycle"}, "expected_tool": "cancel_subscription", "id": "reg-cancel-022", "input": "Turn off renewal at the end of my current period."}

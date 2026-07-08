@@ -42,6 +42,7 @@ class SearchBudgets:
 class ExperimentConfig:
     repo_root: Path
     run_id: str
+    scenario_id: str = "cancel_refund_sanity"
     smoke: bool = False
     optimize_train_limit: int | None = None
     optimize_val_limit: int | None = None
@@ -55,6 +56,7 @@ class ExperimentConfig:
         return {
             "repo_root": str(self.repo_root),
             "run_id": self.run_id,
+            "scenario_id": self.scenario_id,
             "smoke": self.smoke,
             "optimize_train_limit": self.optimize_train_limit,
             "optimize_val_limit": self.optimize_val_limit,

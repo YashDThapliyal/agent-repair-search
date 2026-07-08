@@ -1,0 +1,36 @@
+{
+  "scenario_id": "cancel_refund_sanity",
+  "version": "1.0",
+  "description": "Synthetic customer-support agent with five tools. Seeded failure: cancellation requests that mention billing/money/refund language may be misrouted to issue_refund instead of cancel_subscription. Originally the project's only scenario; retained as the sanity/integration/tutorial scenario.",
+  "task_role": "sanity",
+  "editable_surfaces": ["system_prompt", "tool_descriptions"],
+  "frozen_surfaces": ["tool_names", "tool_schemas"],
+  "artifacts": {
+    "system_prompt": "system_prompt.md",
+    "tools": "tools.json"
+  },
+  "splits": {
+    "optimize_train": "optimize_train.jsonl",
+    "optimize_val": "optimize_val.jsonl",
+    "heldout": "heldout.jsonl",
+    "regression_dev": "regression_dev.jsonl",
+    "regression_final": "regression_final.jsonl"
+  },
+  "target_slice": "target_cancel_billing",
+  "slices": {
+    "target_cancel_billing": {
+      "expected_tool": "cancel_subscription",
+      "failure_cluster": "billing_language_routes_to_refund"
+    },
+    "plain_cancellation": {
+      "expected_tool": "cancel_subscription",
+      "failure_cluster": null
+    },
+    "legitimate_refund": {"expected_tool": "issue_refund"},
+    "customer_search": {"expected_tool": "search_customer"},
+    "subscription_lookup": {"expected_tool": "lookup_subscription"},
+    "escalation": {"expected_tool": "escalate_to_human"}
+  },
+  "regression_split_procedure": "The original evals/regression.jsonl (25 cases) was split deterministically: within each expected_tool group, in original file order, the first ceil(0.4*n) cases go to regression_dev and the remainder to regression_final. The three IDs consumed by the prior live integration smoke (reg-refund-001, reg-refund-002, reg-refund-003) all fall within regression_dev. regression_final was never evaluated during the split.",
+  "provenance": "Split files carry the original case IDs from the pre-scenario evals/ layout."
+}

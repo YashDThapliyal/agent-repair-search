@@ -21,12 +21,16 @@ from agent_repair.reporting import (
     load_search_splits,
     make_run_id,
     prepare_run_dir,
+    regression_split_name,
     run_baseline_only,
+    run_characterization,
     run_finalization_phase,
     run_search_phase,
     run_single_shot_only,
+    scenario_root,
     search_arms_from_phase,
 )
+from agent_repair.viability import ViabilityThresholds
 
 _REQUIRED_LIMIT_FLAGS = (
     "optimize_train_limit",
@@ -67,6 +71,28 @@ def main(argv: list[str] | None = None) -> None:
     config = _build_config(repo_root, args, settings)
     task_model_client = AnthropicModelClient(settings)
     repair_model_client = task_model_client
+
+    if args.command == "characterize":
+        run_dir = prepare_run_dir(config, optimizer_requested="none")
+        summary = run_characterization(
+            config=config,
+            run_dir=run_dir,
+            task_model_client=task_model_client,
+            settings=settings,
+            thresholds=_thresholds(args),
+            include_regression_dev=not args.no_regression_dev,
+        )
+        print(f"Wrote characterization to {run_dir}")
+        viability = summary["viability"]
+        assert isinstance(viability, dict)
+        print(
+            json.dumps(
+                {"classification": viability["classification"], "reason": viability["reason"]},
+                indent=2,
+            )
+        )
+        return
+
     run_dir = prepare_run_dir(config, optimizer_requested=args.optimizer)
     search_splits = load_search_splits(config)
 
@@ -131,9 +157,18 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="agent-repair")
     parser.add_argument(
         "command",
-        choices=["baseline", "single-shot", "optimize", "finalize", "compare", "run-all"],
+        choices=[
+            "characterize",
+            "baseline",
+            "single-shot",
+            "optimize",
+            "finalize",
+            "compare",
+            "run-all",
+        ],
     )
     parser.add_argument("--run-id")
+    parser.add_argument("--scenario", default="cancel_refund_sanity")
     parser.add_argument("--smoke", action="store_true")
     parser.add_argument("--optimizer", choices=["gepa"], default="gepa")
     parser.add_argument("--model")
@@ -162,6 +197,19 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-generations", type=int, default=2)
     parser.add_argument("--max-reflection-calls", type=int, default=6)
     parser.add_argument("--max-eval-calls", type=int, default=500)
+    # GEPA-native bounded-search controls (aliases mapped onto the engine config).
+    parser.add_argument(
+        "--max-candidate-proposals",
+        type=int,
+        help="Bound on GEPA candidate proposals (EngineConfig.max_candidate_proposals). "
+        "Overrides --max-candidates when set.",
+    )
+    parser.add_argument(
+        "--max-metric-calls",
+        type=int,
+        help="Bound on GEPA metric calls (EngineConfig.max_metric_calls). "
+        "Overrides --max-eval-calls when set.",
+    )
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument(
         "--allow-heldout-reuse",
@@ -169,15 +217,41 @@ def build_parser() -> argparse.ArgumentParser:
         help="Permit final held-out evaluation of a new candidate set after the held-out "
         "set has already been consumed. Marks the run non-pristine.",
     )
+    # Viability-gate thresholds (development-only heuristic; resolved values are persisted).
+    parser.add_argument("--target-tsa-high", type=float, default=0.90)
+    parser.add_argument("--min-non-target-tsa", type=float, default=0.75)
+    parser.add_argument("--min-overall-score", type=float, default=0.50)
+    parser.add_argument(
+        "--no-regression-dev",
+        action="store_true",
+        help="Exclude regression_dev from characterization (train/val only).",
+    )
     return parser
+
+
+def _thresholds(args: argparse.Namespace) -> ViabilityThresholds:
+    return ViabilityThresholds(
+        target_failure_slice_tsa_high=args.target_tsa_high,
+        minimum_non_target_tsa=args.min_non_target_tsa,
+        minimum_overall_score=args.min_overall_score,
+    )
 
 
 def _build_config(
     repo_root: Path, args: argparse.Namespace, settings: ModelSettings
 ) -> ExperimentConfig:
+    max_candidates = (
+        args.max_candidate_proposals
+        if args.max_candidate_proposals is not None
+        else args.max_candidates
+    )
+    max_eval_calls = (
+        args.max_metric_calls if args.max_metric_calls is not None else args.max_eval_calls
+    )
     return ExperimentConfig(
         repo_root=repo_root,
         run_id=args.run_id or make_run_id("smoke" if args.smoke else "run"),
+        scenario_id=args.scenario,
         smoke=args.smoke,
         optimize_train_limit=5 if args.smoke else args.optimize_train_limit,
         optimize_val_limit=3 if args.smoke else args.optimize_val_limit,
@@ -186,10 +260,10 @@ def _build_config(
         regression_tolerance=args.regression_tolerance,
         model_settings=settings,
         budgets=SearchBudgets(
-            max_candidates=2 if args.smoke else args.max_candidates,
+            max_candidates=2 if args.smoke else max_candidates,
             max_generations=1 if args.smoke else args.max_generations,
             max_reflection_calls=2 if args.smoke else args.max_reflection_calls,
-            max_eval_calls=12 if args.smoke else args.max_eval_calls,
+            max_eval_calls=12 if args.smoke else max_eval_calls,
             seed=args.seed,
         ),
     )
@@ -213,7 +287,7 @@ def _print_search_summary(
     from agent_repair.reporting import SearchPhaseResult
 
     assert isinstance(phase, SearchPhaseResult)
-    hashes = split_hashes(config.repo_root / "evals")
+    hashes = split_hashes(scenario_root(config))
     summary = {
         "run_id": config.run_id,
         "run_dir": str(run_dir),
@@ -240,7 +314,7 @@ def _finalize(repo_root: Path, args: argparse.Namespace) -> None:
 
     config, settings = _load_run_config(repo_root, args.run_id)
     frozen = load_frozen_candidates(run_dir)
-    _verify_final_dataset_hashes(repo_root, run_dir)
+    _verify_final_dataset_hashes(config, run_dir)
 
     search_metadata = json.loads(
         (run_dir / "optimizer" / "search.json").read_text(encoding="utf-8")
@@ -290,6 +364,7 @@ def _load_run_config(repo_root: Path, run_id: str) -> tuple[ExperimentConfig, Mo
     config = ExperimentConfig(
         repo_root=repo_root,
         run_id=run_id,
+        scenario_id=cfg.get("scenario_id", "cancel_refund_sanity"),
         smoke=bool(cfg.get("smoke", False)),
         heldout_limit=cfg.get("heldout_limit"),
         regression_limit=cfg.get("regression_limit"),
@@ -299,10 +374,10 @@ def _load_run_config(repo_root: Path, run_id: str) -> tuple[ExperimentConfig, Mo
     return config, settings
 
 
-def _verify_final_dataset_hashes(repo_root: Path, run_dir: Path) -> None:
+def _verify_final_dataset_hashes(config: ExperimentConfig, run_dir: Path) -> None:
     recorded = json.loads((run_dir / "split_hashes.json").read_text(encoding="utf-8"))
-    current = split_hashes(repo_root / "evals")
-    for split in ("heldout", "regression"):
+    current = split_hashes(scenario_root(config))
+    for split in ("heldout", regression_split_name(config)):
         if recorded.get(split) != current.get(split):
             raise SystemExit(
                 f"{split} dataset changed since search freeze "

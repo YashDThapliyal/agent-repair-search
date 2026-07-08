@@ -24,7 +24,7 @@ def test_official_gepa_imports() -> None:
 
 
 def test_named_candidate_artifacts_round_trip() -> None:
-    artifacts = load_artifacts(Path("agent"))
+    artifacts = load_artifacts(Path("scenarios/cancel_refund_sanity"))
     candidate = artifacts_to_gepa_candidate(artifacts)
 
     assert "system_prompt" in candidate
@@ -35,10 +35,10 @@ def test_named_candidate_artifacts_round_trip() -> None:
 
 
 def test_actual_gepa_adapter_executes_without_network(tmp_path: Path) -> None:
-    artifacts = load_artifacts(Path("agent"))
-    tools = load_tool_schemas(Path("agent"))
-    train = load_split(Path("evals"), "optimize_train", limit=2)
-    val = load_split(Path("evals"), "optimize_val", limit=1)
+    artifacts = load_artifacts(Path("scenarios/cancel_refund_sanity"))
+    tools = load_tool_schemas(Path("scenarios/cancel_refund_sanity"))
+    train = load_split(Path("scenarios/cancel_refund_sanity"), "optimize_train", limit=2)
+    val = load_split(Path("scenarios/cancel_refund_sanity"), "optimize_val", limit=1)
     task_client = RecordingTaskClient()
     repair_client = RecordingRepairClient()
     optimizer = GepaRepairOptimizer(

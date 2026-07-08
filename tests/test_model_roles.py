@@ -135,7 +135,7 @@ def test_anthropic_client_uses_repair_model_for_text_calls() -> None:
 
 
 def test_single_shot_generation_uses_repair_client() -> None:
-    artifacts = load_artifacts(Path("agent"))
+    artifacts = load_artifacts(Path("scenarios/cancel_refund_sanity"))
     repair_client = RecordingRepairOnlyClient(artifacts)
     candidate = generate_single_shot_candidate(
         context=RepairContext(
@@ -154,9 +154,9 @@ def test_single_shot_generation_uses_repair_client() -> None:
 
 
 def test_evaluation_rollouts_use_task_client_only() -> None:
-    artifacts = load_artifacts(Path("agent"))
-    tools = load_tool_schemas(Path("agent"))
-    cases = load_split(Path("evals"), "optimize_train", limit=2)
+    artifacts = load_artifacts(Path("scenarios/cancel_refund_sanity"))
+    tools = load_tool_schemas(Path("scenarios/cancel_refund_sanity"))
+    cases = load_split(Path("scenarios/cancel_refund_sanity"), "optimize_train", limit=2)
     task_client = RecordingTaskOnlyClient()
 
     predictions, _metrics = evaluate_artifacts(

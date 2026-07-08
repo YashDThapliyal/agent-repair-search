@@ -113,13 +113,19 @@ class StubRepairClient:
         )
 
 
+SCENARIO_ID = "cancel_refund_sanity"
+
+
 @pytest.fixture
 def repo(tmp_path: Path) -> Path:
-    """Hermetic repo root: real agent/ and evals/, isolated runs/ (and registry)."""
-    (tmp_path / "agent").symlink_to(REPO_ROOT / "agent")
-    (tmp_path / "evals").symlink_to(REPO_ROOT / "evals")
+    """Hermetic repo root: real scenarios/ tree, isolated runs/ (and registry)."""
+    (tmp_path / "scenarios").symlink_to(REPO_ROOT / "scenarios")
     (tmp_path / "runs").mkdir()
     return tmp_path
+
+
+def _scenario_dir(repo: Path) -> Path:
+    return repo / "scenarios" / SCENARIO_ID
 
 
 def _config(repo: Path, *, run_id: str, smoke: bool) -> ExperimentConfig:
@@ -223,7 +229,7 @@ def test_finalization_consumes_heldout_and_records_registry(repo: Path) -> None:
     assert (run_dir / "comparison.json").exists()
 
     reg = load_registry(registry_path(repo / "runs"))
-    dataset_hash = split_hashes(repo / "evals")["heldout"]
+    dataset_hash = split_hashes(_scenario_dir(repo))["heldout"]
     consumptions = reg["datasets"][dataset_hash]["consumptions"]
     assert consumptions[-1]["candidate_hashes"] == phase.frozen.hashes
     assert consumptions[-1]["pristine"] is True
@@ -237,7 +243,7 @@ def test_finalization_blocks_reused_heldout_without_override(repo: Path) -> None
     # Pre-seed the registry with a prior consumption of the same held-out data under a
     # DIFFERENT candidate set, simulating iterative development against held-out.
     reg_path = registry_path(repo / "runs")
-    dataset_hash = split_hashes(repo / "evals")["heldout"]
+    dataset_hash = split_hashes(_scenario_dir(repo))["heldout"]
     other = {"original": "x", "single_shot": "y", "gepa": "z"}
     decision = decide_consumption(
         load_registry(reg_path),
