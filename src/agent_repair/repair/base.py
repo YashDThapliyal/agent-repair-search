@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol
 
 from agent_repair.models import AgentArtifacts, EvalCase, JSONObject, ModelClient, RepairCandidate
@@ -33,6 +33,8 @@ class SearchResult:
     agent_eval_calls: int
     total_examples_evaluated: int
     wall_clock_seconds: float
+    proposals: list[JSONObject] = field(default_factory=list)
+    asi_samples: list[JSONObject] = field(default_factory=list)
 
 
 class RepairOptimizer(Protocol):

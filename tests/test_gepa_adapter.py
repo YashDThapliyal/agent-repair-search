@@ -75,6 +75,18 @@ def test_actual_gepa_adapter_executes_without_network(tmp_path: Path) -> None:
     assert task_client.calls
     assert repair_client.calls
 
+    # Proposal lifecycle is recorded, one entry per repair-model call.
+    assert len(result.proposals) == result.repair_model_calls
+    first = result.proposals[0]
+    assert first["parse_status"] == "ok"
+    assert first["candidate_hash"]
+    assert first["parent_candidate_hash"]
+    assert first["rejection_reason"] == "not_exposed_by_gepa"
+    assert "identical_to_parent" in first
+    # ASI samples capture what the proposer received on failures.
+    assert result.asi_samples
+    assert "reflective_dataset" in result.asi_samples[0]
+
 
 class RecordingTaskClient:
     def __init__(self) -> None:

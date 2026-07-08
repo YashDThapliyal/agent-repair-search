@@ -19,6 +19,7 @@ from agent_repair.models import (
     RepairCandidate,
     TextResult,
     ToolSchema,
+    stable_json_hash,
 )
 from agent_repair.repair.base import RepairContext, RepairOptimizer, SearchResult
 
@@ -66,6 +67,9 @@ class GepaRepairOptimizer(RepairOptimizer):
         started = time.perf_counter()
         counters = {"task_calls": 0, "repair_calls": 0}
         seed_candidate = artifacts_to_gepa_candidate(context.baseline_artifacts)
+        proposals: list[dict[str, Any]] = []
+        seen_candidate_hashes: set[str] = set()
+        asi_samples: list[dict[str, Any]] = []
 
         def evaluator(
             candidate: dict[str, str],
@@ -114,17 +118,61 @@ class GepaRepairOptimizer(RepairOptimizer):
             components_to_update: list[str],
         ) -> dict[str, str]:
             counters["repair_calls"] += 1
+            if len(asi_samples) < 3:
+                asi_samples.append(
+                    {
+                        "components_to_update": list(components_to_update),
+                        "reflective_dataset": reflective_dataset,
+                    }
+                )
             prompt = _proposal_prompt(candidate, reflective_dataset, components_to_update)
-            response = repair_model_client.complete_text(
-                system_prompt=(
-                    "You propose targeted edits to named customer-support agent artifacts. "
-                    "Return only JSON."
-                ),
-                prompt=prompt,
-                temperature=self.settings.repair_temperature,
-                max_tokens=self.settings.repair_max_tokens,
-            )
-            return _parse_component_updates(response, candidate, components_to_update)
+            parent_hash = _candidate_hash(candidate)
+            record: dict[str, Any] = {
+                "proposal_id": len(proposals) + 1,
+                "iteration": "not_exposed_by_gepa",
+                "parent_candidate_hash": parent_hash,
+                "parent_candidate_hashes": [parent_hash],
+                "components_to_update": list(components_to_update),
+                "evaluation_status": "not_exposed_by_gepa",
+                "train_score": None,
+                "val_score": None,
+                "accepted": "not_exposed_by_gepa",
+                "rejection_reason": "not_exposed_by_gepa",
+                "metric_calls_consumed": None,
+            }
+            try:
+                response = repair_model_client.complete_text(
+                    system_prompt=(
+                        "You propose targeted edits to named customer-support agent artifacts. "
+                        "Return only JSON."
+                    ),
+                    prompt=prompt,
+                    temperature=self.settings.repair_temperature,
+                    max_tokens=self.settings.repair_max_tokens,
+                )
+            except Exception as exc:  # noqa: BLE001 - recorded then re-raised
+                record.update(parse_status="repair_call_failed", error=str(exc))
+                proposals.append(record)
+                raise
+            record["raw_output_hash"] = _text_hash(response.text)
+            try:
+                updates = _parse_component_updates(response, candidate, components_to_update)
+                record["parse_status"] = "ok"
+            except ValueError as exc:
+                record.update(parse_status="parse_error", error=str(exc))
+                proposals.append(record)
+                raise
+            proposed = {**candidate, **updates}
+            proposed_hash = _candidate_hash(proposed)
+            record["candidate_hash"] = proposed_hash
+            record["identical_to_parent"] = proposed_hash == parent_hash
+            record["duplicate"] = proposed_hash in seen_candidate_hashes
+            record["changed_components"] = [
+                key for key in components_to_update if candidate.get(key) != proposed.get(key)
+            ]
+            seen_candidate_hashes.add(proposed_hash)
+            proposals.append(record)
+            return updates
 
         result = optimize_anything(
             seed_candidate=seed_candidate,
@@ -205,6 +253,8 @@ class GepaRepairOptimizer(RepairOptimizer):
             agent_eval_calls=counters["task_calls"],
             total_examples_evaluated=counters["task_calls"],
             wall_clock_seconds=time.perf_counter() - started,
+            proposals=proposals,
+            asi_samples=asi_samples,
         )
 
 
@@ -283,6 +333,14 @@ def _parse_component_updates(
         if isinstance(value, str) and value.strip():
             updates[component] = value
     return updates or {component: candidate[component] for component in components_to_update}
+
+
+def _candidate_hash(candidate: dict[str, str]) -> str:
+    return stable_json_hash(dict(sorted(candidate.items())))
+
+
+def _text_hash(text: str) -> str:
+    return stable_json_hash(text)
 
 
 def _ensure_candidate_dict(candidate: str | dict[str, str]) -> dict[str, str]:

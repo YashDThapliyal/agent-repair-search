@@ -531,6 +531,8 @@ def _write_search_artifacts(
     write_json(optimizer_dir / "lineage.json", search.lineage)
     write_json(optimizer_dir / "finalist.json", search.finalist.to_dict())
     write_json(optimizer_dir / "search.json", _search_metadata(search, settings))
+    write_jsonl(optimizer_dir / "proposals.jsonl", search.proposals)
+    write_json(optimizer_dir / "asi_samples.json", search.asi_samples)
     (optimizer_dir / "diff.patch").write_text(
         unified_artifact_diff(baseline_artifacts, search.finalist.artifacts), encoding="utf-8"
     )
@@ -553,6 +555,23 @@ def _search_metadata(search: SearchResult, settings: ModelSettings) -> JSONObjec
         "candidate_scores": search.candidate_scores,
         "task_model": settings.task_model,
         "repair_model": settings.repair_model,
+        "proposal_lifecycle": _proposal_lifecycle_summary(search),
+    }
+
+
+def _proposal_lifecycle_summary(search: SearchResult) -> JSONObject:
+    proposals = search.proposals
+    parsed = [p for p in proposals if p.get("parse_status") == "ok"]
+    distinct = {p.get("candidate_hash") for p in parsed if p.get("candidate_hash")}
+    non_identical = [p for p in parsed if p.get("identical_to_parent") is False]
+    return {
+        "proposal_attempts": len(proposals),
+        "parsed_proposals": len(parsed),
+        "distinct_candidate_hashes": len(distinct),
+        "non_identical_to_parent": len(non_identical),
+        "candidates_in_result": len(search.candidates),
+        "rejection_reasons_known": False,
+        "rejection_reasons_note": "not_exposed_by_gepa",
     }
 
 
