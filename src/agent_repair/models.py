@@ -266,7 +266,7 @@ class ModelClient(Protocol):
         system_prompt: str,
         tools: list[ToolSchema],
         user_input: str,
-        temperature: float,
+        temperature: float | None,
         max_tokens: int,
     ) -> AgentResult: ...
 

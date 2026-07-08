@@ -31,18 +31,20 @@ class AnthropicModelClient(ModelClient):
         system_prompt: str,
         tools: list[ToolSchema],
         user_input: str,
-        temperature: float,
+        temperature: float | None,
         max_tokens: int,
     ) -> AgentResult:
         def call() -> object:
-            return self._client.messages.create(
-                model=self.settings.task_model,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                system=system_prompt,
-                messages=[{"role": "user", "content": user_input}],
-                tools=[tool.to_anthropic() for tool in tools],
-            )
+            request = {
+                "model": self.settings.task_model,
+                "max_tokens": max_tokens,
+                "system": system_prompt,
+                "messages": [{"role": "user", "content": user_input}],
+                "tools": [tool.to_anthropic() for tool in tools],
+            }
+            if temperature is not None:
+                request["temperature"] = temperature
+            return self._client.messages.create(**request)
 
         started = time.perf_counter()
         response = self._with_retries(call)

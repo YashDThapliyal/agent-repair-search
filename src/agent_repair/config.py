@@ -15,7 +15,7 @@ class ConfigurationError(RuntimeError):
 class ModelSettings:
     task_model: str
     repair_model: str
-    temperature: float = 0.0
+    temperature: float | None = 0.0
     repair_temperature: float | None = None
     max_tokens: int = 512
     repair_max_tokens: int = 4096
@@ -71,7 +71,7 @@ def load_model_settings(
     shared_model_override: str | None,
     task_model_override: str | None,
     repair_model_override: str | None,
-    temperature: float,
+    temperature: float | None,
     repair_temperature: float | None,
     max_tokens: int,
     repair_max_tokens: int,

@@ -11,7 +11,7 @@ class CustomerSupportAgent:
         artifacts: AgentArtifacts,
         base_tools: list[ToolSchema],
         model_client: ModelClient,
-        temperature: float,
+        temperature: float | None,
         max_tokens: int,
     ) -> None:
         self.artifacts = artifacts
