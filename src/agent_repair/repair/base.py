@@ -14,6 +14,8 @@ class RepairContext:
     optimize_val_cases: list[EvalCase]
     failing_records: list[JSONObject]
     allowed_surfaces: tuple[str, ...] = ("system_prompt", "tool_descriptions")
+    gepa_objective: str | None = None
+    gepa_background: str | None = None
 
 
 @dataclass(frozen=True)

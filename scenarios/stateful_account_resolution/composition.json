@@ -1,0 +1,99 @@
+{
+  "challenge_categories": {
+    "contrast": 20,
+    "distractor_details": 13,
+    "emotionally_charged_language": 11,
+    "explicit_intent": 38,
+    "implicit_intent": 24,
+    "indirect_request": 16,
+    "mixed_past_future_language": 16,
+    "multiple_plausible_tool_words": 7,
+    "negation": 21,
+    "temporal_language": 24
+  },
+  "counts": {
+    "heldout": 40,
+    "optimize_train": 70,
+    "optimize_val": 30,
+    "regression_dev": 20,
+    "regression_final": 30
+  },
+  "per_split_slices": {
+    "heldout": {
+      "apply_account_credit": 4,
+      "cancel_subscription": 1,
+      "change_subscription_plan": 4,
+      "issue_refund": 1,
+      "pause_subscription": 3,
+      "target_state_counterfactual": 27
+    },
+    "optimize_train": {
+      "escalate_billing_case": 4,
+      "issue_refund": 1,
+      "lookup_charge": 4,
+      "lookup_subscription": 4,
+      "open_charge_dispute": 4,
+      "reverse_pending_charge": 4,
+      "target_state_counterfactual": 45,
+      "verify_identity": 4
+    },
+    "optimize_val": {
+      "cancel_subscription": 4,
+      "disable_auto_renew": 4,
+      "issue_refund": 3,
+      "pause_subscription": 1,
+      "target_state_counterfactual": 18
+    },
+    "regression_dev": {
+      "apply_account_credit": 1,
+      "cancel_subscription": 1,
+      "change_subscription_plan": 2,
+      "disable_auto_renew": 2,
+      "escalate_billing_case": 2,
+      "issue_refund": 1,
+      "lookup_charge": 2,
+      "lookup_subscription": 2,
+      "open_charge_dispute": 2,
+      "pause_subscription": 1,
+      "reverse_pending_charge": 2,
+      "verify_identity": 2
+    },
+    "regression_final": {
+      "apply_account_credit": 3,
+      "cancel_subscription": 3,
+      "change_subscription_plan": 2,
+      "disable_auto_renew": 2,
+      "escalate_billing_case": 2,
+      "issue_refund": 3,
+      "lookup_charge": 2,
+      "lookup_subscription": 3,
+      "open_charge_dispute": 3,
+      "pause_subscription": 3,
+      "reverse_pending_charge": 2,
+      "verify_identity": 2
+    }
+  },
+  "policy_rules": {
+    "apply_account_credit": 14,
+    "cancel_subscription": 15,
+    "change_subscription_plan": 8,
+    "disable_auto_renew": 14,
+    "escalate_billing_case": 16,
+    "issue_refund": 23,
+    "lookup_charge": 16,
+    "lookup_subscription": 15,
+    "open_charge_dispute": 23,
+    "pause_subscription": 14,
+    "reverse_pending_charge": 16,
+    "verify_identity": 16
+  },
+  "scenario_id": "stateful_account_resolution",
+  "split_hashes": {
+    "heldout": "1040727380eef60385424a7af4532b8680a553a6a9e3bc03846f0a14ce6051f3",
+    "optimize_train": "ecbc7e51f4fc03b4f542d85ab38d8606d1e3699c46ba8949b703c89d00c0c418",
+    "optimize_val": "467e132894e7a3cef4f6d2e54ee35f7aab64c4ed87e7d5ee28c1e0b2bb42883f",
+    "regression_dev": "6398c35c451aaa29c8b477c565d06c5b0884d2e417af26ba356e07b15d3858e0",
+    "regression_final": "5e5b2055dd1cdf486fd85d5619b8c876dbb6fc3e3410e57dc23efeb5b7a5ec40"
+  },
+  "version": "1.0"
+}

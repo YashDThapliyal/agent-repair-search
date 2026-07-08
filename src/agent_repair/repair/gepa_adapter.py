@@ -179,8 +179,8 @@ class GepaRepairOptimizer(RepairOptimizer):
             evaluator=evaluator,
             dataset=context.optimize_train_cases,
             valset=context.optimize_val_cases,
-            objective=OBJECTIVE,
-            background=BACKGROUND,
+            objective=context.gepa_objective or OBJECTIVE,
+            background=context.gepa_background or BACKGROUND,
             config=GEPAConfig(
                 engine=EngineConfig(
                     run_dir=self.run_dir,

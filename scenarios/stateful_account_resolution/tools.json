@@ -1,0 +1,239 @@
+[
+  {
+    "name": "verify_identity",
+    "description": "Verify the customer's identity for protected account operations.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "customer_id": {
+          "type": "string"
+        },
+        "verification_method": {
+          "type": "string",
+          "enum": [
+            "email_otp",
+            "sms_otp",
+            "security_questions"
+          ]
+        }
+      },
+      "required": [
+        "customer_id",
+        "verification_method"
+      ]
+    }
+  },
+  {
+    "name": "lookup_charge",
+    "description": "Retrieve details for a specific billing charge.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "charge_id": {
+          "type": "string"
+        },
+        "customer_id": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  {
+    "name": "lookup_subscription",
+    "description": "Retrieve current subscription and renewal details.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "subscription_id": {
+          "type": "string"
+        },
+        "customer_id": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  {
+    "name": "reverse_pending_charge",
+    "description": "Reverse a card charge that has not yet settled.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "charge_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "charge_id"
+      ]
+    }
+  },
+  {
+    "name": "open_charge_dispute",
+    "description": "Open an investigation for an unauthorized charge.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "charge_id": {
+          "type": "string"
+        },
+        "reason_code": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "charge_id",
+        "reason_code"
+      ]
+    }
+  },
+  {
+    "name": "escalate_billing_case",
+    "description": "Escalate a billing case that requires specialist handling.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "customer_id": {
+          "type": "string"
+        },
+        "case_reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "customer_id",
+        "case_reason"
+      ]
+    }
+  },
+  {
+    "name": "issue_refund",
+    "description": "Refund an eligible settled charge.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "charge_id": {
+          "type": "string"
+        },
+        "amount_mode": {
+          "type": "string",
+          "enum": [
+            "full",
+            "partial"
+          ]
+        }
+      },
+      "required": [
+        "charge_id",
+        "amount_mode"
+      ]
+    }
+  },
+  {
+    "name": "disable_auto_renew",
+    "description": "Prevent a subscription from renewing automatically.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "subscription_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "subscription_id"
+      ]
+    }
+  },
+  {
+    "name": "cancel_subscription",
+    "description": "Terminate an active subscription.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "subscription_id": {
+          "type": "string"
+        },
+        "effective_timing": {
+          "type": "string",
+          "enum": [
+            "immediate",
+            "end_of_billing_cycle"
+          ]
+        }
+      },
+      "required": [
+        "subscription_id",
+        "effective_timing"
+      ]
+    }
+  },
+  {
+    "name": "pause_subscription",
+    "description": "Temporarily pause subscription service.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "subscription_id": {
+          "type": "string"
+        },
+        "resume_date": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "subscription_id",
+        "resume_date"
+      ]
+    }
+  },
+  {
+    "name": "change_subscription_plan",
+    "description": "Move a subscription to another plan.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "subscription_id": {
+          "type": "string"
+        },
+        "target_plan": {
+          "type": "string"
+        },
+        "effective_timing": {
+          "type": "string",
+          "enum": [
+            "immediate",
+            "end_of_billing_cycle"
+          ]
+        }
+      },
+      "required": [
+        "subscription_id",
+        "target_plan",
+        "effective_timing"
+      ]
+    }
+  },
+  {
+    "name": "apply_account_credit",
+    "description": "Add non-cash service credit to an account.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "customer_id": {
+          "type": "string"
+        },
+        "credit_amount": {
+          "type": "string"
+        },
+        "reason_code": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "customer_id",
+        "credit_amount",
+        "reason_code"
+      ]
+    }
+  }
+]

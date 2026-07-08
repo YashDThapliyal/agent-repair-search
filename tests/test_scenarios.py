@@ -78,3 +78,57 @@ def test_target_family_never_in_regression_final() -> None:
     for split in ("regression_dev", "regression_final"):
         for case in _load(scenario.root, split):
             assert case.failure_cluster != "money_language_confounds_termination"
+
+
+def test_stateful_account_resolution_loads_and_validates() -> None:
+    from agent_repair.datasets import load_split as _load
+    from agent_repair.datasets import validate_all_splits
+
+    scenario = load_scenario(REPO, "stateful_account_resolution")
+    assert scenario.target_slice == "target_state_counterfactual"
+    assert scenario.manifest.get("frozen_before_search") is True
+    assert "diagnosis" in scenario.manifest
+    assert "gepa_objective" in scenario.manifest
+    assert "gepa_background" in scenario.manifest
+
+    import json
+
+    tools = json.loads(scenario.tools_path.read_text(encoding="utf-8"))
+    assert len(tools) == 12
+    assert (scenario.root / "policy_precedence.md").exists()
+
+    validate_all_splits(scenario.root)
+
+    split_counts = {split: len(_load(scenario.root, split)) for split in (
+        "optimize_train",
+        "optimize_val",
+        "heldout",
+        "regression_dev",
+        "regression_final",
+    )}
+    assert sum(split_counts.values()) == 190
+    assert split_counts == {
+        "optimize_train": 70,
+        "optimize_val": 30,
+        "heldout": 40,
+        "regression_dev": 20,
+        "regression_final": 30,
+    }
+
+    target_in_search = 0
+    for split in ("optimize_train", "optimize_val", "heldout"):
+        for case in _load(scenario.root, split):
+            if scenario.slice_of(case) == "target_state_counterfactual":
+                target_in_search += 1
+                assert case.failure_cluster == "state_dependent_counterfactual"
+                assert case.counterfactual_family is not None
+                assert case.policy_rule is not None
+    assert target_in_search == 90
+
+    for split in ("regression_dev", "regression_final"):
+        for case in _load(scenario.root, split):
+            assert case.failure_cluster != "state_dependent_counterfactual"
+
+
+def test_list_scenarios_includes_stateful_account_resolution() -> None:
+    assert "stateful_account_resolution" in list_scenarios(REPO)

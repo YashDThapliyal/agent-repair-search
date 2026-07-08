@@ -107,6 +107,9 @@ class EvalCase:
     failure_cluster: str | None = None
     notes: str | None = None
     challenge_category: str | None = None
+    policy_rule: str | None = None
+    counterfactual_family: str | None = None
+    counterfactual_pair_id: str | None = None
 
     @classmethod
     def from_dict(cls, data: JSONObject) -> EvalCase:
@@ -120,10 +123,16 @@ class EvalCase:
         failure_cluster = data.get("failure_cluster")
         notes = data.get("notes")
         challenge_category = data.get("challenge_category")
+        policy_rule = data.get("policy_rule")
+        counterfactual_family = data.get("counterfactual_family")
+        counterfactual_pair_id = data.get("counterfactual_pair_id")
         for optional_field, value in (
             ("failure_cluster", failure_cluster),
             ("notes", notes),
             ("challenge_category", challenge_category),
+            ("policy_rule", policy_rule),
+            ("counterfactual_family", counterfactual_family),
+            ("counterfactual_pair_id", counterfactual_pair_id),
         ):
             if value is not None and not isinstance(value, str):
                 raise ValueError(f"eval case {data.get('id')} has non-string {optional_field}")
@@ -136,6 +145,9 @@ class EvalCase:
             failure_cluster=failure_cluster,
             notes=notes,
             challenge_category=challenge_category,
+            policy_rule=policy_rule,
+            counterfactual_family=counterfactual_family,
+            counterfactual_pair_id=counterfactual_pair_id,
         )
 
     def to_dict(self) -> JSONObject:

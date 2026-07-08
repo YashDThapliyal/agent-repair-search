@@ -35,7 +35,7 @@ from agent_repair.registry import (
 from agent_repair.repair.base import RepairContext, SearchResult
 from agent_repair.repair.gepa_adapter import PROPOSER_TYPE, GepaRepairOptimizer, gepa_version
 from agent_repair.repair.single_shot import generate_single_shot_candidate
-from agent_repair.scenarios import Scenario, load_scenario
+from agent_repair.scenarios import Scenario, load_scenario, repair_context_fields
 from agent_repair.viability import ViabilityThresholds, classify
 
 DIAGNOSIS = (
@@ -53,6 +53,26 @@ ARM_OPTIMIZER = "optimizer"
 HASH_ORIGINAL = "original"
 HASH_SINGLE_SHOT = "single_shot"
 HASH_GEPA = "gepa"
+
+
+def _build_repair_context(
+    *,
+    scenario: Scenario,
+    baseline_artifacts: AgentArtifacts,
+    optimize_train_cases: list[EvalCase],
+    optimize_val_cases: list[EvalCase],
+    failing_records: list[JSONObject],
+) -> RepairContext:
+    fields = repair_context_fields(scenario)
+    return RepairContext(
+        diagnosis=fields.get("diagnosis", DIAGNOSIS),
+        baseline_artifacts=baseline_artifacts,
+        optimize_train_cases=optimize_train_cases,
+        optimize_val_cases=optimize_val_cases,
+        failing_records=failing_records,
+        gepa_objective=fields.get("gepa_objective"),
+        gepa_background=fields.get("gepa_background"),
+    )
 
 
 def scenario_root(config: ExperimentConfig) -> Path:
@@ -396,8 +416,8 @@ def _single_shot_search_arm(
     failing: list[JSONObject],
 ) -> tuple[SearchArm, RepairCandidate]:
     single_candidate = generate_single_shot_candidate(
-        context=RepairContext(
-            diagnosis=DIAGNOSIS,
+        context=_build_repair_context(
+            scenario=load_scenario_for(config),
             baseline_artifacts=baseline_artifacts,
             optimize_train_cases=search_splits["optimize_train"],
             optimize_val_cases=search_splits["optimize_val"],
@@ -472,8 +492,8 @@ def run_search_phase(
         run_dir=str(optimizer_dir / "gepa_run"),
     )
     search = gepa.search(
-        context=RepairContext(
-            diagnosis=DIAGNOSIS,
+        context=_build_repair_context(
+            scenario=load_scenario_for(config),
             baseline_artifacts=baseline_artifacts,
             optimize_train_cases=search_splits["optimize_train"],
             optimize_val_cases=search_splits["optimize_val"],
@@ -753,6 +773,9 @@ def run_characterization(
     tsa_overall = _tsa(predictions)
     arg_overall = _arg_accuracy(predictions)
     by_slice = _slice_metrics(predictions, scenario)
+    by_policy_rule = _metadata_breakdown(predictions, "policy_rule")
+    by_challenge_category = _metadata_breakdown(predictions, "challenge_category")
+    counterfactual = _counterfactual_consistency(predictions)
     confusion = _confusion_matrix(predictions)
     failure_ids = [p.case.id for p in predictions if not p.eval_result.passed]
 
@@ -785,6 +808,9 @@ def run_characterization(
         "failure_ids": failure_ids,
         "per_split": split_metrics,
         "per_slice": by_slice,
+        "per_policy_rule": by_policy_rule,
+        "per_challenge_category": by_challenge_category,
+        "counterfactual_consistency": counterfactual,
         "confusion_matrix": confusion,
         "viability": assessment.to_dict(),
     }
@@ -793,6 +819,52 @@ def run_characterization(
         _render_characterization(summary), encoding="utf-8"
     )
     return summary
+
+
+def _metadata_breakdown(
+    predictions: list[CasePrediction], attr: str
+) -> dict[str, JSONObject]:
+    grouped: dict[str, list[CasePrediction]] = {}
+    for prediction in predictions:
+        value = getattr(prediction.case, attr, None) or "none"
+        grouped.setdefault(str(value), []).append(prediction)
+    output: dict[str, JSONObject] = {}
+    for name, preds in grouped.items():
+        output[name] = {
+            "cases": len(preds),
+            "tool_selection_accuracy": _tsa(preds),
+            "argument_accuracy": _arg_accuracy(preds),
+            "mean_score": _composite_mean(preds),
+            "pass_rate": sum(1 for p in preds if p.eval_result.passed) / len(preds),
+            "failure_ids": [p.case.id for p in preds if not p.eval_result.passed],
+        }
+    return dict(sorted(output.items()))
+
+
+def _counterfactual_consistency(predictions: list[CasePrediction]) -> JSONObject:
+    grouped: dict[str, list[CasePrediction]] = {}
+    for prediction in predictions:
+        pair_id = prediction.case.counterfactual_pair_id
+        if pair_id:
+            grouped.setdefault(pair_id, []).append(prediction)
+    if not grouped:
+        return {"pairs": 0, "fully_consistent_pairs": 0, "consistency_rate": None}
+    fully_consistent = sum(
+        1 for preds in grouped.values() if all(p.eval_result.passed for p in preds)
+    )
+    return {
+        "pairs": len(grouped),
+        "fully_consistent_pairs": fully_consistent,
+        "consistency_rate": fully_consistent / len(grouped),
+        "pair_results": {
+            pair_id: {
+                "cases": len(preds),
+                "all_passed": all(p.eval_result.passed for p in preds),
+                "failure_ids": [p.case.id for p in preds if not p.eval_result.passed],
+            }
+            for pair_id, preds in sorted(grouped.items())
+        },
+    }
 
 
 def _composite_mean(predictions: list[CasePrediction]) -> float:
@@ -879,6 +951,34 @@ def _render_characterization(summary: JSONObject) -> str:
             f"| {name} | {metrics['cases']} | {_fmt(metrics['tool_selection_accuracy'])} | "
             f"{_fmt(metrics['argument_accuracy'])} | {_fmt(metrics['pass_rate'])} |"
         )
+    lines.extend(["", "## Per-policy-rule", ""])
+    per_policy = summary.get("per_policy_rule", {})
+    if isinstance(per_policy, dict):
+        for name, metrics in per_policy.items():
+            if isinstance(metrics, dict):
+                lines.append(
+                    f"- `{name}`: TSA {_fmt(metrics.get('tool_selection_accuracy'))} "
+                    f"over {metrics.get('cases')} cases"
+                )
+    lines.extend(["", "## Per-challenge-category", ""])
+    per_challenge = summary.get("per_challenge_category", {})
+    if isinstance(per_challenge, dict):
+        for name, metrics in per_challenge.items():
+            if isinstance(metrics, dict):
+                lines.append(
+                    f"- `{name}`: TSA {_fmt(metrics.get('tool_selection_accuracy'))} "
+                    f"over {metrics.get('cases')} cases"
+                )
+    cf = summary.get("counterfactual_consistency", {})
+    if isinstance(cf, dict):
+        lines.extend([
+            "",
+            "## Counterfactual consistency",
+            "",
+            f"- pairs: `{cf.get('pairs')}`",
+            f"- fully consistent: `{cf.get('fully_consistent_pairs')}`",
+            f"- consistency rate: `{_fmt(cf.get('consistency_rate'))}`",
+        ])
     lines.append("")
     return "\n".join(lines)
 

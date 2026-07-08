@@ -59,8 +59,26 @@ def _matches(case: EvalCase, spec: dict[str, object]) -> bool:
         "expected_tool": case.expected_tool,
         "failure_cluster": case.failure_cluster,
         "category": case.category,
+        "policy_rule": case.policy_rule,
+        "counterfactual_family": case.counterfactual_family,
     }
     return all(value == spec[key] for key, value in fields.items() if key in spec)
+
+
+def repair_context_fields(scenario: Scenario) -> dict[str, str]:
+    """Load scenario-specific repair/GEPA text from the manifest when present."""
+    manifest = scenario.manifest
+    diagnosis = manifest.get("diagnosis")
+    gepa_objective = manifest.get("gepa_objective")
+    gepa_background = manifest.get("gepa_background")
+    output: dict[str, str] = {}
+    if isinstance(diagnosis, str) and diagnosis.strip():
+        output["diagnosis"] = diagnosis.strip()
+    if isinstance(gepa_objective, str) and gepa_objective.strip():
+        output["gepa_objective"] = gepa_objective.strip()
+    if isinstance(gepa_background, str) and gepa_background.strip():
+        output["gepa_background"] = gepa_background.strip()
+    return output
 
 
 def scenarios_dir(repo_root: Path) -> Path:

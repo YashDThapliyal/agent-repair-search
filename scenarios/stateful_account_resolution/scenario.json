@@ -1,0 +1,120 @@
+{
+  "scenario_id": "stateful_account_resolution",
+  "version": "1.0",
+  "description": "State-dependent next-action tool selection for enterprise account operations. Correct action depends jointly on user intent, backend state, prerequisites, temporal charge status, and authorization.",
+  "task_role": "main_candidate",
+  "editable_surfaces": [
+    "system_prompt",
+    "tool_descriptions"
+  ],
+  "frozen_surfaces": [
+    "tool_names",
+    "tool_schemas",
+    "policy_precedence"
+  ],
+  "artifacts": {
+    "system_prompt": "system_prompt.md",
+    "tools": "tools.json",
+    "policy_precedence": "policy_precedence.md"
+  },
+  "splits": {
+    "optimize_train": "optimize_train.jsonl",
+    "optimize_val": "optimize_val.jsonl",
+    "heldout": "heldout.jsonl",
+    "regression_dev": "regression_dev.jsonl",
+    "regression_final": "regression_final.jsonl"
+  },
+  "target_slice": "target_state_counterfactual",
+  "target_failure_family": "state_dependent_counterfactual",
+  "policy_precedence": [
+    "verify_identity",
+    "lookup_charge",
+    "lookup_subscription",
+    "reverse_pending_charge",
+    "open_charge_dispute",
+    "escalate_billing_case",
+    "issue_refund",
+    "disable_auto_renew",
+    "cancel_subscription",
+    "pause_subscription",
+    "change_subscription_plan",
+    "apply_account_credit"
+  ],
+  "challenge_categories": [
+    "explicit_intent",
+    "implicit_intent",
+    "negation",
+    "contrast",
+    "temporal_language",
+    "mixed_past_future_language",
+    "distractor_details",
+    "indirect_request",
+    "emotionally_charged_language",
+    "multiple_plausible_tool_words"
+  ],
+  "counterfactual_families": [
+    "money_back",
+    "stop_paying",
+    "compensation"
+  ],
+  "slices": {
+    "target_state_counterfactual": {
+      "failure_cluster": "state_dependent_counterfactual"
+    },
+    "verify_identity": {
+      "expected_tool": "verify_identity",
+      "failure_cluster": null
+    },
+    "lookup_charge": {
+      "expected_tool": "lookup_charge"
+    },
+    "lookup_subscription": {
+      "expected_tool": "lookup_subscription"
+    },
+    "reverse_pending_charge": {
+      "expected_tool": "reverse_pending_charge"
+    },
+    "open_charge_dispute": {
+      "expected_tool": "open_charge_dispute"
+    },
+    "escalate_billing_case": {
+      "expected_tool": "escalate_billing_case"
+    },
+    "issue_refund": {
+      "expected_tool": "issue_refund",
+      "failure_cluster": null
+    },
+    "disable_auto_renew": {
+      "expected_tool": "disable_auto_renew",
+      "failure_cluster": null
+    },
+    "cancel_subscription": {
+      "expected_tool": "cancel_subscription",
+      "failure_cluster": null
+    },
+    "pause_subscription": {
+      "expected_tool": "pause_subscription",
+      "failure_cluster": null
+    },
+    "change_subscription_plan": {
+      "expected_tool": "change_subscription_plan"
+    },
+    "apply_account_credit": {
+      "expected_tool": "apply_account_credit"
+    }
+  },
+  "composition": {
+    "total": 190,
+    "optimize_train": 70,
+    "optimize_val": 30,
+    "heldout": 40,
+    "regression_dev": 20,
+    "regression_final": 30,
+    "target_in_search_splits_only": true,
+    "split_procedure": "Target counterfactual cases (failure_cluster=state_dependent_counterfactual) are assigned only to optimize_train, optimize_val, and heldout. Regression splits contain non-target straightforward policy cases only."
+  },
+  "frozen_before_search": true,
+  "diagnosis": "The agent selects tools from surface wording alone instead of the frozen policy precedence applied to the provided case state. Counterfactual families share money-back, stop-paying, or compensation phrasing but require different next actions depending on identity verification, charge/subscription metadata, authorization, charge age, and remedy type.",
+  "gepa_objective": "Improve state-dependent next-action tool selection for enterprise account operations. The correct tool is the policy-mandated action for the current case state, not merely the user's ultimate desired outcome.",
+  "gepa_background": "Editable artifacts are the global system prompt and twelve tool descriptions for verify_identity, lookup_subscription, lookup_charge, cancel_subscription, disable_auto_renew, pause_subscription, change_subscription_plan, reverse_pending_charge, issue_refund, open_charge_dispute, apply_account_credit, and escalate_billing_case. Tool names, schemas, and the frozen policy precedence in policy_precedence.md must not change. Each eval case provides a user request and structured CASE STATE JSON; the agent must return exactly one tool call with schema-valid arguments."
+}
