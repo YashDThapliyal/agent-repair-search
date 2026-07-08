@@ -15,17 +15,17 @@
 - [x] Inspect repository and read `AGENTS.md`.
 - [x] Initialize Git repository on `main`.
 - [x] Create implementation plan.
-- [ ] Configure uv project, lockfile, lint, test tooling.
-- [ ] Implement Anthropic client abstraction.
-- [ ] Implement customer-support agent artifacts and runner.
-- [ ] Commit optimization, held-out, and regression datasets.
-- [ ] Implement deterministic evaluation and tests.
-- [ ] Implement baseline and single-shot repair arms.
-- [ ] Implement optimizer-backed fallback search with candidate lineage.
-- [ ] Implement held-out validation, regression gate, reporting, and patches.
-- [ ] Implement full CLI and offline smoke pipeline.
+- [x] Configure uv project, lockfile, lint, test tooling.
+- [x] Implement Anthropic client abstraction.
+- [x] Implement customer-support agent artifacts and runner.
+- [x] Commit optimization, held-out, and regression datasets.
+- [x] Implement deterministic evaluation and tests.
+- [x] Implement baseline and single-shot repair arms.
+- [x] Implement optimizer-backed fallback search with candidate lineage.
+- [x] Implement held-out validation, regression gate, reporting, and patches.
+- [x] Implement full CLI and offline smoke pipeline.
 - [ ] Write README without prohibited mentions or fabricated results.
-- [ ] Run formatting, lint, tests, and offline smoke.
+- [x] Run formatting, lint, tests, and offline smoke.
 - [ ] Create logical commits and attempt public GitHub push.
 
 ## Experiment Integrity Rules
