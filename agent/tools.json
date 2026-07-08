@@ -1,0 +1,80 @@
+[
+  {
+    "name": "search_customer",
+    "description": "Find a customer profile when the user provides identifying information such as email, phone number, full name, or account ID but does not ask to change a subscription or payment.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "Customer identifier from the request."
+        }
+      },
+      "required": ["query"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "lookup_subscription",
+    "description": "Inspect plan status, renewal date, trial status, billing cadence, or entitlement details when the user asks what they have or when it renews.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "lookup": {
+          "type": "string",
+          "description": "The subscription detail to inspect, such as status, renewal_date, trial_status, or plan."
+        }
+      },
+      "required": ["lookup"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "cancel_subscription",
+    "description": "Stop an active subscription or prevent renewal when the user's main request is to cancel, close, stop, downgrade to no paid plan, or turn off auto-renewal. Use this for straightforward cancellation requests that are not about a refund.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "when": {
+          "type": "string",
+          "enum": ["immediately", "end_of_billing_cycle"],
+          "description": "Whether cancellation should happen immediately or at the end of the current paid period."
+        }
+      },
+      "required": ["when"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "issue_refund",
+    "description": "Issue a refund, credit, or reversal for a charge when the user mentions money, billing, payment, charged, invoice, refund, or a mistaken purchase. Use this when the request centers on returning funds.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string",
+          "enum": ["duplicate_charge", "service_issue", "accidental_purchase", "policy_exception"],
+          "description": "Reason for the refund or credit."
+        }
+      },
+      "required": ["reason"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "escalate_to_human",
+    "description": "Escalate complex, sensitive, abusive, legal, chargeback, compliance, or exception requests that need a human specialist.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string",
+          "enum": ["legal", "chargeback", "safety", "policy_exception", "abuse"],
+          "description": "Why a human specialist is required."
+        }
+      },
+      "required": ["reason"],
+      "additionalProperties": false
+    }
+  }
+]
