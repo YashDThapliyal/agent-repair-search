@@ -26,7 +26,7 @@
 - [x] Implement full CLI and offline smoke pipeline.
 - [x] Write README without prohibited mentions or fabricated results.
 - [x] Run formatting, lint, tests, and offline smoke.
-- [ ] Create logical commits and attempt public GitHub push.
+- [x] Create logical commits and attempt public GitHub push.
 
 ## Experiment Integrity Rules
 
@@ -51,3 +51,9 @@
 - README contains no fabricated results and no prohibited product references.
 - Git history has logical commits with no secrets.
 - Public GitHub remote is created and pushed if `gh` auth permits; otherwise the exact blocker is reported.
+
+## Final Status Notes
+
+- Offline implementation and checks are complete.
+- Live Anthropic run was not executed because `ANTHROPIC_MODEL` is missing in the current environment.
+- Public GitHub repository creation is blocked by invalid GitHub CLI auth for `YashDThapliyal`; run `gh auth login -h github.com`, then create/push with the command in the final report.
