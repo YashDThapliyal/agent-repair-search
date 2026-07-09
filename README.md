@@ -1,3 +1,5 @@
+<img width="1584" height="672" alt="Gemini_Generated_Image_h0pi3wh0pi3wh0pi" src="https://github.com/user-attachments/assets/67a36775-4404-4285-9344-7b535c04f7c6" />
+
 # Mettle: repair-search experiments for tool-calling agents
 
 After an agent failure is diagnosed, should you ask a strong model once to fix it, or spend more compute searching over candidate repairs?
