@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mettle: Choosing How to Repair Failing Agents</title>
+    <style>
+      @page {
+        size: letter landscape;
+        margin: 0;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        width: 11in;
+        height: 8.5in;
+        background: #f6f6f3;
+        color: #182033;
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+      }
+
+      body {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      .page {
+        width: 11in;
+        height: 8.5in;
+        padding: 0.3in 0.44in 0.22in;
+        display: grid;
+        grid-template-rows: 0.96in 4.34in 1.48in 0.22in;
+        gap: 0.09in;
+      }
+
+      .header {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        column-gap: 0.24in;
+        align-items: start;
+        border-bottom: 1px solid #d8dbe5;
+        padding-bottom: 0.14in;
+      }
+
+      .kicker {
+        margin: 0 0 0.08in;
+        color: #4c3f89;
+        font-size: 10.5px;
+        font-weight: 760;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 0;
+        color: #111827;
+        font-size: 29px;
+        line-height: 1.02;
+        font-weight: 780;
+        letter-spacing: 0;
+      }
+
+      .subtitle {
+        margin: 0.08in 0 0;
+        color: #4b5565;
+        font-size: 12.6px;
+        font-weight: 620;
+      }
+
+      .framing {
+        max-width: 3.35in;
+        margin: 0.03in 0 0;
+        color: #3f4758;
+        font-size: 11.8px;
+        line-height: 1.38;
+      }
+
+      .diagram-wrap {
+        position: relative;
+        border: 1px solid #d8dbe5;
+        border-radius: 18px;
+        background: #fbfbf8;
+        box-shadow: 0 14px 34px rgba(28, 33, 50, 0.08);
+        overflow: hidden;
+      }
+
+      svg {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+
+      .box {
+        fill: #ffffff;
+        stroke: #cfd4df;
+        stroke-width: 1.5;
+        filter: url(#softShadow);
+      }
+
+      .box-muted {
+        fill: #f8f8fb;
+      }
+
+      .selector {
+        fill: #f1effd;
+        stroke: #6f5ed7;
+        stroke-width: 2.5;
+        filter: url(#selectorShadow);
+      }
+
+      .strategy {
+        fill: #ffffff;
+        stroke: #b8bee0;
+        stroke-width: 1.5;
+      }
+
+      .eval-box {
+        fill: #f3f8f7;
+        stroke: #7ba8a0;
+      }
+
+      .title-text {
+        fill: #141c2e;
+        font-size: 21px;
+        font-weight: 760;
+      }
+
+      .small-text {
+        fill: #5b6475;
+        font-size: 13.5px;
+        font-weight: 500;
+      }
+
+      .micro-text {
+        fill: #646d7d;
+        font-size: 12px;
+        font-weight: 540;
+      }
+
+      .selector-title {
+        fill: #241b54;
+        font-size: 26px;
+        font-weight: 800;
+      }
+
+      .layer-label {
+        fill: #5b4cc4;
+        font-size: 13px;
+        font-weight: 820;
+        letter-spacing: 0.09em;
+      }
+
+      .signal {
+        fill: #ffffff;
+        stroke: #c8c3ef;
+        stroke-width: 1;
+      }
+
+      .signal-text {
+        fill: #3e347e;
+        font-size: 12.2px;
+        font-weight: 700;
+      }
+
+      .arrow {
+        stroke: #7a8294;
+        stroke-width: 2.2;
+        fill: none;
+        marker-end: url(#arrowHead);
+      }
+
+      .arrow-strong {
+        stroke: #6252c7;
+        stroke-width: 2.8;
+      }
+
+      .feedback {
+        stroke: #a3a8b6;
+        stroke-width: 1.6;
+        fill: none;
+        stroke-dasharray: 6 7;
+        marker-end: url(#arrowHeadMuted);
+      }
+
+      .bottom {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.22in;
+      }
+
+      .note {
+        border: 1px solid #d8dbe5;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.72);
+        padding: 0.13in 0.16in;
+      }
+
+      .note h2 {
+        margin: 0 0 0.06in;
+        color: #182033;
+        font-size: 14.4px;
+        line-height: 1.15;
+        font-weight: 760;
+      }
+
+      .note p {
+        margin: 0;
+        color: #41495a;
+        font-size: 11.8px;
+        line-height: 1.38;
+      }
+
+      .goal {
+        margin-top: 0.05in !important;
+        color: #4c3f89 !important;
+        font-weight: 690;
+      }
+
+      .footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: end;
+        color: #697183;
+        font-size: 10.5px;
+        line-height: 1;
+        border-top: 1px solid #dde0e8;
+        padding-top: 0.08in;
+      }
+
+      .footer strong {
+        color: #4b5263;
+        font-weight: 720;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page" aria-label="Mettle repair strategy selection one-pager">
+      <section class="header">
+        <div>
+          <p class="kicker">Mettle</p>
+          <h1>Choosing How to Repair Failing Agents</h1>
+          <p class="subtitle">A repair-strategy selection layer for agent improvement loops</p>
+        </div>
+        <p class="framing">
+          For systems that diagnose failures and build targeted evals, what repair
+          strategy should run next? Mettle tests how different repair approaches
+          trade off generalization, regression risk, and search cost.
+        </p>
+      </section>
+
+      <section class="diagram-wrap" aria-label="Repair strategy selection architecture">
+        <svg viewBox="0 0 1460 610" role="img" aria-labelledby="diagram-title">
+          <title id="diagram-title">
+            Observe failures, diagnose them, select a repair strategy, evaluate candidates, and select a repair.
+          </title>
+          <defs>
+            <filter id="softShadow" x="-15%" y="-25%" width="130%" height="150%">
+              <feDropShadow dx="0" dy="8" stdDeviation="6" flood-color="#182033" flood-opacity="0.08" />
+            </filter>
+            <filter id="selectorShadow" x="-18%" y="-30%" width="136%" height="160%">
+              <feDropShadow dx="0" dy="12" stdDeviation="9" flood-color="#4c3f89" flood-opacity="0.18" />
+            </filter>
+            <marker id="arrowHead" markerWidth="10" markerHeight="10" refX="8.5" refY="5" orient="auto">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#7a8294" />
+            </marker>
+            <marker id="arrowHeadMuted" markerWidth="10" markerHeight="10" refX="8.5" refY="5" orient="auto">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#a3a8b6" />
+            </marker>
+          </defs>
+
+          <rect x="64" y="70" width="216" height="118" rx="18" class="box" />
+          <text x="172" y="115" text-anchor="middle" class="title-text">
+            <tspan x="172" dy="0">Agent traces</tspan>
+            <tspan x="172" dy="25">and failures</tspan>
+          </text>
+          <text x="172" y="159" text-anchor="middle" class="small-text">
+            <tspan x="172" dy="0">tool calls, trajectories,</tspan>
+            <tspan x="172" dy="18">failed outcomes</tspan>
+          </text>
+
+          <rect x="64" y="240" width="216" height="112" rx="18" class="box box-muted" />
+          <text x="172" y="287" text-anchor="middle" class="title-text">Diagnose failure</text>
+          <text x="172" y="318" text-anchor="middle" class="small-text">identify recurring issue</text>
+
+          <rect x="64" y="404" width="216" height="118" rx="18" class="box box-muted" />
+          <text x="172" y="451" text-anchor="middle" class="title-text">Build targeted evals</text>
+          <text x="172" y="482" text-anchor="middle" class="small-text">
+            <tspan x="172" dy="0">measure behavior</tspan>
+            <tspan x="172" dy="18">that should improve</tspan>
+          </text>
+
+          <text x="528" y="150" text-anchor="middle" class="layer-label">PROPOSED NEXT LAYER</text>
+          <rect x="375" y="172" width="306" height="272" rx="24" class="selector" />
+          <text x="528" y="230" text-anchor="middle" class="selector-title">
+            <tspan x="528" dy="0">Repair Strategy</tspan>
+            <tspan x="528" dy="31">Selector</tspan>
+          </text>
+          <text x="528" y="292" text-anchor="middle" class="small-text">
+            <tspan x="528" dy="0">choose a repair approach</tspan>
+            <tspan x="528" dy="18">from failure and eval signals</tspan>
+          </text>
+          <rect x="418" y="334" width="98" height="34" rx="17" class="signal" />
+          <text x="467" y="356" text-anchor="middle" class="signal-text">failure type</text>
+          <rect x="530" y="334" width="104" height="34" rx="17" class="signal" />
+          <text x="582" y="356" text-anchor="middle" class="signal-text">eval signal</text>
+          <rect x="418" y="383" width="116" height="34" rx="17" class="signal" />
+          <text x="476" y="405" text-anchor="middle" class="signal-text">regression risk</text>
+          <rect x="547" y="383" width="108" height="34" rx="17" class="signal" />
+          <text x="601" y="405" text-anchor="middle" class="signal-text">compute budget</text>
+
+          <rect x="782" y="80" width="212" height="88" rx="18" class="strategy" />
+          <text x="888" y="117" text-anchor="middle" class="title-text">Focused repair</text>
+          <text x="888" y="143" text-anchor="middle" class="small-text">one strong targeted change</text>
+
+          <rect x="782" y="248" width="212" height="92" rx="18" class="strategy" />
+          <text x="888" y="287" text-anchor="middle" class="title-text">Bounded search</text>
+          <text x="888" y="313" text-anchor="middle" class="small-text">search over candidates</text>
+          <text x="888" y="330" text-anchor="middle" class="micro-text">e.g. GEPA</text>
+
+          <rect x="782" y="418" width="212" height="88" rx="18" class="strategy" />
+          <text x="888" y="454" text-anchor="middle" class="title-text">Other strategy</text>
+          <text x="888" y="480" text-anchor="middle" class="small-text">future repair methods</text>
+
+          <rect x="1096" y="168" width="198" height="178" rx="20" class="box eval-box" />
+          <text x="1195" y="214" text-anchor="middle" class="title-text">Evaluate candidate</text>
+          <text x="1195" y="255" text-anchor="middle" class="micro-text">
+            <tspan x="1195" dy="0">target improvement</tspan>
+            <tspan x="1195" dy="21">held-out generalization</tspan>
+            <tspan x="1195" dy="21">regression checks</tspan>
+            <tspan x="1195" dy="21">cost / latency</tspan>
+          </text>
+
+          <rect x="1096" y="404" width="198" height="104" rx="20" class="box" />
+          <text x="1195" y="448" text-anchor="middle" class="title-text">Select repair</text>
+          <text x="1195" y="478" text-anchor="middle" class="small-text">deploy, retry, or reject</text>
+
+          <path d="M172 188 L172 240" class="arrow" />
+          <path d="M172 352 L172 404" class="arrow" />
+          <path d="M280 463 C325 463 332 330 375 330" class="arrow" />
+          <path d="M681 300 C720 300 736 124 782 124" class="arrow arrow-strong" />
+          <path d="M681 308 C720 308 736 294 782 294" class="arrow arrow-strong" />
+          <path d="M681 316 C720 316 736 462 782 462" class="arrow arrow-strong" />
+          <path d="M994 124 C1040 124 1048 226 1096 226" class="arrow" />
+          <path d="M994 294 C1040 294 1048 257 1096 257" class="arrow" />
+          <path d="M994 462 C1040 462 1048 304 1096 304" class="arrow" />
+          <path d="M1195 346 L1195 404" class="arrow" />
+          <path d="M1096 480 C890 558 332 558 172 522" class="feedback" />
+        </svg>
+      </section>
+
+      <section class="bottom" aria-label="Project summary and possible next step">
+        <article class="note">
+          <h2>What Mettle tested</h2>
+          <p>
+            Mettle compares repair approaches for a failing stateful tool-calling
+            agent using separate optimization, untouched held-out, and regression
+            evaluations. In the completed experiment, more search did not always
+            produce the best generalizing repair, while different strategies showed
+            different regression tradeoffs.
+          </p>
+        </article>
+        <article class="note">
+          <h2>Possible next step</h2>
+          <p>
+            Choose the repair method dynamically based on the diagnosed failure,
+            expected improvement, regression risk, and available compute, rather
+            than defaulting to the same repair process for every issue.
+          </p>
+          <p class="goal">Goal: spend search budget where it is most likely to help.</p>
+        </article>
+      </section>
+
+      <footer class="footer">
+        <div><strong>Open source:</strong> github.com/YashDThapliyal/mettle-agent-repair-search</div>
+        <div><strong>Yash D. Thapliyal</strong></div>
+      </footer>
+    </main>
+  </body>
+</html>

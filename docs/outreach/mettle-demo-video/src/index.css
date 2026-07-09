@@ -1,0 +1,9 @@
+/* Minimal reset for the Mettle demo video. All styling is inline per-scene;
+   no Tailwind, no remote fonts. */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
