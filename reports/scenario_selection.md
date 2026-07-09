@@ -1,37 +1,39 @@
 # Scenario Selection
 
-**Basis:** baseline development characterization only (optimize_train + optimize_val +
-regression_dev), using the real task model `claude-haiku-4-5-20251001` under a corrected
-forced-tool-call harness (`tool_choice=any`). **No optimizer outcomes were used to
-select scenarios.**
+**Basis:** baseline development characterization only, using
+`claude-haiku-4-5-20251001` under the forced single-tool-call harness
+(`tool_choice=any`). Optimizer outcomes were not used to decide scenario viability.
 
 | Scenario | Version | Target slice TSA | Overall | Non-target TSA | Classification | Role |
 | --- | --- | ---: | ---: | ---: | --- | --- |
-| cancel_refund_sanity | 1.0 | 1.000 (40) | 0.968* | high | TARGET_FAILURE_ABSENT | smoke / tutorial |
-| subscription_billing_ambiguity | 1.1 | 0.944 (36) | 0.946 | 0.947 | TOO_EASY | harder candidate (still not viable) |
-
-\* sanity overall under forced tool use; the seeded cancel-vs-refund bug does not
-reproduce for this task model.
+| `cancel_refund_sanity` | 1.0 | 1.000 (40) | 0.944 | 0.909 | TARGET_FAILURE_ABSENT | smoke / tutorial |
+| `subscription_billing_ambiguity` | 1.1 | 0.944 (36) | 0.946 | 0.947 | TOO_EASY | harder candidate; still not viable |
+| `stateful_account_resolution` | 1.0 | 0.476 (63) | 0.690 | 0.965 | VIABLE_FOCUSED_REPAIR | completed final experiment |
 
 ## Decision
 
-**No scenario is selected as a main research benchmark for `claude-haiku-4-5-20251001`.**
+`stateful_account_resolution` v1.0 is the selected main scenario for the public
+experiment. It creates focused repair headroom: the target counterfactual slice fails
+often enough to be meaningful, while non-target tool selection remains strong.
 
-Both scenarios are too easy for this task model once the evaluation harness forces a
-single tool call (previously the model often replied with text, which the evaluator
-scored as a miss and which masked the true routing competence). The predeclared
-viability gate — set before any optimizer run — classifies both as lacking focused
-repair headroom:
+The earlier scenarios remain useful integration and tutorial cases:
 
-- `cancel_refund_sanity`: the seeded failure family (cancellation + billing language)
-  is routed correctly 100% of the time → **TARGET_FAILURE_ABSENT**.
-- `subscription_billing_ambiguity` v1.1: even with 10 overlapping tools and nine
-  linguistic challenge categories, the target family scores TSA 0.944 and overall 0.946
-  → **TOO_EASY**.
+- `cancel_refund_sanity`: the seeded cancel-vs-refund failure does not reproduce for
+  the task model.
+- `subscription_billing_ambiguity` v1.1: the target slice is still too easy for the
+  task model.
 
-This is an honest negative result about scenario difficulty, not a statement about GEPA.
-A meaningful GEPA-vs-single-shot comparison for this task model would require either a
-harder scenario (more genuinely ambiguous product semantics) or a weaker/steered task
-model. Neither is fabricated here.
+## Completed Final Run
 
-Both scenarios remain committed and usable as sanity / integration / tutorial scenarios.
+The completed final run is:
+
+```text
+runs/sar-gepa-final-search/
+```
+
+Because `runs/*` is ignored by repository policy, the public tracked summary is:
+
+```text
+reports/final_experiment.md
+reports/final_experiment.json
+```

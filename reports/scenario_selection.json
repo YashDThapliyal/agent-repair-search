@@ -1,7 +1,10 @@
 {
   "basis": "baseline development characterization only (optimize_train + optimize_val + regression_dev)",
-  "decision": "No scenario qualifies as VIABLE_FOCUSED_REPAIR for claude-haiku-4-5-20251001. Both are too easy under a correct forced-tool-call harness. Neither is promoted to a main research benchmark for this task model.",
   "harness": "forced tool_choice=any (single-step tool router)",
+  "selection_used_optimizer_outcomes": false,
+  "task_model": "claude-haiku-4-5-20251001",
+  "selected_main_scenario": "stateful_account_resolution",
+  "decision": "stateful_account_resolution v1.0 qualifies as VIABLE_FOCUSED_REPAIR and is the completed final experiment scenario.",
   "scenarios": {
     "cancel_refund_sanity": {
       "argument_accuracy": 0.9194,
@@ -27,9 +30,19 @@
       "target_slice_cases": 36,
       "target_slice_tsa": 0.9444444444444444,
       "tool_selection_accuracy": 0.9459
+    },
+    "stateful_account_resolution": {
+      "argument_accuracy": 0.6722222222222223,
+      "classification": "VIABLE_FOCUSED_REPAIR",
+      "non_target_tsa": 0.9649122807017544,
+      "overall_score": 0.6902777777777778,
+      "reason": "target slice TSA 0.476 shows meaningful failures while non-target competence remains adequate",
+      "role": "completed final experiment",
+      "scenario_version": "1.0",
+      "target_slice": "target_state_counterfactual",
+      "target_slice_cases": 63,
+      "target_slice_tsa": 0.47619047619047616,
+      "tool_selection_accuracy": 0.7083333333333334
     }
-  },
-  "selected_main_scenario": null,
-  "selection_used_optimizer_outcomes": false,
-  "task_model": "claude-haiku-4-5-20251001"
+  }
 }

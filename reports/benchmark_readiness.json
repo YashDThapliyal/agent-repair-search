@@ -1,25 +1,25 @@
 {
-  "asi_verified": true,
-  "baseline_target_failure_present": false,
-  "best_candidate_differs_from_seed": "unknown (no viable-scenario live search run this pass)",
-  "code_committed": true,
-  "development_headroom_present": false,
-  "final_regression_consumed": false,
-  "gating_reasons": [
-    "baseline too easy: cancel_refund_sanity target TSA 1.000 (TARGET_FAILURE_ABSENT)",
-    "baseline too easy: subscription_billing_ambiguity v1.1 target TSA 0.944, overall 0.946 (TOO_EASY)",
-    "no scenario classified VIABLE_FOCUSED_REPAIR for claude-haiku-4-5-20251001",
-    "development headroom for the seeded target failure is insufficient"
+  "ready_for_public_presentation": true,
+  "selected_scenario": "stateful_account_resolution",
+  "scenario_version": "1.0",
+  "completed_run": "runs/sar-gepa-final-search",
+  "tracked_summary": [
+    "reports/final_experiment.md",
+    "reports/final_experiment.json"
   ],
-  "gepa_actual": "gepa (verified in prior live smoke and offline adapter tests)",
-  "heldout_consumed": false,
-  "non_seed_candidate_explored": "verified offline (adapter test); not re-run live this pass",
+  "baseline_target_failure_present": true,
+  "development_headroom_present": true,
   "non_target_competence_present": true,
-  "not_benchmark_evidence": true,
-  "proposal_lifecycle_auditable": true,
-  "ready_for_final_benchmark": false,
-  "scenario_frozen_before_search": true,
-  "scenario_version": null,
+  "heldout_consumed": true,
+  "heldout_pristine": true,
+  "heldout_reused": false,
+  "final_regression_consumed": true,
+  "gepa_actual": "gepa",
+  "proposer_type": "custom_anthropic_repair_proposer",
   "search_budget_recorded": true,
-  "selected_scenario": null
+  "candidate_hashes_recorded": true,
+  "split_hashes_recorded": true,
+  "code_committed": true,
+  "conclusion": "Bounded GEPA search did not outperform the strong single-shot repair on pristine held-out target behavior. Single-shot achieved the best held-out composite; GEPA achieved the best final regression composite.",
+  "statistical_significance_claimed": false
 }

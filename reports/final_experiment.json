@@ -1,0 +1,67 @@
+{
+  "scenario_id": "stateful_account_resolution",
+  "scenario_version": "1.0",
+  "source_run": "runs/sar-gepa-final-search",
+  "models": {
+    "task_model": "claude-haiku-4-5-20251001",
+    "repair_model": "claude-sonnet-5"
+  },
+  "optimizer": {
+    "optimizer_actual": "gepa",
+    "gepa_version": "0.1.1",
+    "proposer_type": "custom_anthropic_repair_proposer"
+  },
+  "finalization": {
+    "heldout_pristine": true,
+    "heldout_reused": false,
+    "regression_gate_passed": true
+  },
+  "composite_mean_score": {
+    "original": {
+      "optimize_train": 0.6535714285714286,
+      "optimize_val": 0.6,
+      "heldout": 0.475,
+      "regression": 0.9333333333333333
+    },
+    "single_shot": {
+      "optimize_train": 0.825,
+      "optimize_val": 0.7333333333333333,
+      "heldout": 0.55,
+      "regression": 0.9333333333333333
+    },
+    "gepa": {
+      "optimize_train": 0.8107142857142857,
+      "optimize_val": 0.7,
+      "heldout": 0.5,
+      "regression": 0.9555555555555556
+    }
+  },
+  "heldout_target_state_dependent_counterfactual": {
+    "cases": 27,
+    "original": {
+      "mean_score": 0.27469135802469136,
+      "tool_selection_accuracy": 0.2962962962962963,
+      "pass_rate": 0.2222222222222222
+    },
+    "single_shot": {
+      "mean_score": 0.38580246913580246,
+      "tool_selection_accuracy": 0.4074074074074074,
+      "pass_rate": 0.3333333333333333
+    },
+    "gepa": {
+      "mean_score": 0.3117283950617284,
+      "tool_selection_accuracy": 0.3333333333333333,
+      "pass_rate": 0.25925925925925924
+    }
+  },
+  "search_accounting": {
+    "proposal_attempts": 10,
+    "parsed_proposals": 10,
+    "distinct_candidate_hashes": 10,
+    "candidates_in_result": 5,
+    "repair_model_calls": 10,
+    "task_model_eval_calls": 210,
+    "wall_clock_seconds": 270.7703968749847
+  },
+  "conclusion": "Single-shot achieved the best held-out target behavior. GEPA improved over original and had the strongest final regression composite, but bounded GEPA search did not outperform the strong single-shot repair on the primary held-out target outcome."
+}

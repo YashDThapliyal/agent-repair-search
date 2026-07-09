@@ -99,13 +99,16 @@ def test_stateful_account_resolution_loads_and_validates() -> None:
 
     validate_all_splits(scenario.root)
 
-    split_counts = {split: len(_load(scenario.root, split)) for split in (
-        "optimize_train",
-        "optimize_val",
-        "heldout",
-        "regression_dev",
-        "regression_final",
-    )}
+    split_counts = {
+        split: len(_load(scenario.root, split))
+        for split in (
+            "optimize_train",
+            "optimize_val",
+            "heldout",
+            "regression_dev",
+            "regression_final",
+        )
+    }
     assert sum(split_counts.values()) == 190
     assert split_counts == {
         "optimize_train": 70,

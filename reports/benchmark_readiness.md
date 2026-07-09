@@ -1,48 +1,46 @@
 # Benchmark Readiness
 
-**ready_for_final_benchmark: `false`**
+**ready_for_public_presentation: `true`**
 
-**NOT BENCHMARK EVIDENCE — this summarizes development characterization only.**
+The completed final experiment is `stateful_account_resolution` v1.0, with final
+comparison artifacts in the local run directory:
 
-## Gating reasons
+```text
+runs/sar-gepa-final-search/
+```
 
-- `cancel_refund_sanity`: baseline target-slice TSA 1.000 → TARGET_FAILURE_ABSENT.
-- `subscription_billing_ambiguity` v1.1: baseline target-slice TSA 0.944, overall 0.946
-  → TOO_EASY.
-- No scenario classified `VIABLE_FOCUSED_REPAIR` for `claude-haiku-4-5-20251001`.
-- Development headroom for the seeded target failure is insufficient, so a final
-  benchmark would not measure a meaningful repair problem.
+Tracked public summaries:
 
-## Status of each readiness signal
+```text
+reports/final_experiment.md
+reports/final_experiment.json
+```
+
+## Readiness Signals
 
 | Signal | Value |
 | --- | --- |
-| heldout_consumed | false |
-| final_regression_consumed | false |
-| baseline_target_failure_present | false |
-| development_headroom_present | false |
+| selected_scenario | `stateful_account_resolution` |
+| scenario_version | `1.0` |
+| baseline_target_failure_present | true |
+| development_headroom_present | true |
 | non_target_competence_present | true |
-| asi_verified | true (offline adapter test + persisted samples) |
-| gepa_actual | gepa (prior live smoke + offline adapter tests) |
-| proposal_lifecycle_auditable | true (proposals.jsonl schema; tested) |
-| non_seed_candidate_explored | verified offline; not re-run live this pass |
-| best_candidate_differs_from_seed | unknown (no viable-scenario live search this pass) |
+| heldout_consumed | true |
+| heldout_pristine | true |
+| heldout_reused | false |
+| final_regression_consumed | true |
+| gepa_actual | `gepa` |
+| proposer_type | `custom_anthropic_repair_proposer` |
 | search_budget_recorded | true |
-| scenario_frozen_before_search | true |
+| candidate_hashes_recorded | true |
+| split_hashes_recorded | true |
 | code_committed | true |
 
-## Why no live GEPA pilot was run this pass
+## Final Outcome
 
-Phase 18's precondition is a *viable* scenario. Both scenarios are too easy for the task
-model, so spending GEPA budget would not test the research question. The proposal
-lifecycle and ASI instrumentation were verified offline (`tests/test_gepa_adapter.py`),
-and a prior live integration smoke already exercised the real GEPA engine with the custom
-Anthropic proposer. A GEPA win is not required for readiness; readiness is false here
-purely because no scenario poses a meaningful repair problem for this task model.
+Bounded GEPA search did not outperform the strong single-shot repair on pristine
+held-out target behavior. Single-shot achieved the best held-out composite, while GEPA
+achieved the best final regression composite.
 
-## Recommended next step (not performed here)
-
-Raise scenario difficulty via genuinely harder product semantics, or evaluate a
-weaker/steered task model, until baseline characterization yields
-`VIABLE_FOCUSED_REPAIR`. Only then run the bounded GEPA development pilot, and only after
-that a final benchmark.
+This is benchmark evidence for the completed synthetic scenario, not a statistical claim
+about all repair-search configurations.

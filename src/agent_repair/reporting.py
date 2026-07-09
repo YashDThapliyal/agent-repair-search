@@ -821,9 +821,7 @@ def run_characterization(
     return summary
 
 
-def _metadata_breakdown(
-    predictions: list[CasePrediction], attr: str
-) -> dict[str, JSONObject]:
+def _metadata_breakdown(predictions: list[CasePrediction], attr: str) -> dict[str, JSONObject]:
     grouped: dict[str, list[CasePrediction]] = {}
     for prediction in predictions:
         value = getattr(prediction.case, attr, None) or "none"
@@ -971,14 +969,16 @@ def _render_characterization(summary: JSONObject) -> str:
                 )
     cf = summary.get("counterfactual_consistency", {})
     if isinstance(cf, dict):
-        lines.extend([
-            "",
-            "## Counterfactual consistency",
-            "",
-            f"- pairs: `{cf.get('pairs')}`",
-            f"- fully consistent: `{cf.get('fully_consistent_pairs')}`",
-            f"- consistency rate: `{_fmt(cf.get('consistency_rate'))}`",
-        ])
+        lines.extend(
+            [
+                "",
+                "## Counterfactual consistency",
+                "",
+                f"- pairs: `{cf.get('pairs')}`",
+                f"- fully consistent: `{cf.get('fully_consistent_pairs')}`",
+                f"- consistency rate: `{_fmt(cf.get('consistency_rate'))}`",
+            ]
+        )
     lines.append("")
     return "\n".join(lines)
 

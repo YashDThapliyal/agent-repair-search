@@ -99,25 +99,23 @@ POLICY_PRECEDENCE: tuple[tuple[str, str], ...] = (
     ("apply_account_credit", "Non-cash compensation / future service credit intent."),
 )
 
-SYSTEM_PROMPT = """You are the action-selection component of an enterprise SaaS account-operations agent.
-
-For each case, select exactly one available tool call that best advances the user's request from the current case state.
-
-Choose the action that should happen now, not merely the user's ultimate desired outcome.
-
-Use both:
-- the user's request
-- the provided case state
-
-Do not assume facts that are not present.
-Do not skip required prerequisites.
-Do not invent identifiers or argument values.
-Prefer the narrowest action that is valid for the current state.
-Use exactly one tool.
-Populate only arguments supported by that tool's schema.
-
-Return a tool call only.
-"""
+SYSTEM_PROMPT = (
+    "You are the action-selection component of an enterprise SaaS account-operations agent.\n\n"
+    "For each case, select exactly one available tool call that best advances the user's "
+    "request from the current case state.\n\n"
+    "Choose the action that should happen now, not merely the user's ultimate desired "
+    "outcome.\n\n"
+    "Use both:\n"
+    "- the user's request\n"
+    "- the provided case state\n\n"
+    "Do not assume facts that are not present.\n"
+    "Do not skip required prerequisites.\n"
+    "Do not invent identifiers or argument values.\n"
+    "Prefer the narrowest action that is valid for the current state.\n"
+    "Use exactly one tool.\n"
+    "Populate only arguments supported by that tool's schema.\n\n"
+    "Return a tool call only.\n"
+)
 
 TOOL_DESCRIPTIONS: dict[str, str] = {
     "verify_identity": "Verify the customer's identity for protected account operations.",
@@ -204,7 +202,10 @@ def _mb_reverse_state() -> dict[str, Any]:
 
 def _mb_refund_state() -> dict[str, Any]:
     return _base_state(
-        charge_status="settled", charge_authorized=True, charge_age_days=12, refund_already_issued=False
+        charge_status="settled",
+        charge_authorized=True,
+        charge_age_days=12,
+        refund_already_issued=False,
     )
 
 
@@ -257,20 +258,41 @@ MONEY_BACK_VARIANTS: tuple[tuple[str, str, dict[str, Any], dict[str, Any]], ...]
 
 MONEY_BACK_REQUESTS: tuple[tuple[str, str, str], ...] = (
     ("mb-p01", "explicit_intent", "I want my money back for charge chg-33017. Please reverse it."),
-    ("mb-p02", "implicit_intent", "That recent payment was a mistake — I need those funds returned."),
-    ("mb-p03", "negation", "Do not keep charge chg-33017; I am not asking for credit, I want cash back."),
-    ("mb-p04", "contrast", "I paid yesterday but changed my mind — refund the charge, not a dispute."),
-    ("mb-p05", "temporal_language", "The charge from last week should be reversed; send my money back now."),
+    (
+        "mb-p02",
+        "implicit_intent",
+        "That recent payment was a mistake — I need those funds returned.",
+    ),
+    (
+        "mb-p03",
+        "negation",
+        "Do not keep charge chg-33017; I am not asking for credit, I want cash back.",
+    ),
+    (
+        "mb-p04",
+        "contrast",
+        "I paid yesterday but changed my mind — refund the charge, not a dispute.",
+    ),
+    (
+        "mb-p05",
+        "temporal_language",
+        "The charge from last week should be reversed; send my money back now.",
+    ),
     (
         "mb-p06",
         "mixed_past_future_language",
         "You billed me already and I will not keep the service — put the payment back on my card.",
     ),
-    ("mb-p07", "distractor_details", "My dog chewed the invoice, but charge chg-33017 must be refunded to my card."),
+    (
+        "mb-p07",
+        "distractor_details",
+        "My dog chewed the invoice, but charge chg-33017 must be refunded to my card.",
+    ),
     (
         "mb-p08",
         "indirect_request",
-        "Could you undo the billing on chg-33017? My accountant says that payment should not stand.",
+        "Could you undo the billing on chg-33017? My accountant says that payment "
+        "should not stand.",
     ),
     (
         "mb-p09",
@@ -291,21 +313,57 @@ STOP_PAYING_REQUESTS: tuple[tuple[str, str, str], ...] = (
         "Stop future renewals but let me keep access through the paid period on sub-77102.",
     ),
     ("sp-p02", "implicit_intent", "I am done after this cycle — end the plan now, do not wait."),
-    ("sp-p03", "negation", "Do not bill me again next month, but do not cut off access before the term ends."),
-    ("sp-p04", "contrast", "Cancel immediately rather than pausing — I want the subscription ended today."),
+    (
+        "sp-p03",
+        "negation",
+        "Do not bill me again next month, but do not cut off access before the term ends.",
+    ),
+    (
+        "sp-p04",
+        "contrast",
+        "Cancel immediately rather than pausing — I want the subscription ended today.",
+    ),
     ("sp-p05", "temporal_language", "Pause sub-77102 until June and resume billing afterward."),
-    ("sp-p06", "mixed_past_future_language", "I paid for this month already; just stop the next renewal from happening."),
-    ("sp-p07", "distractor_details", "My team uses Slack elsewhere, so halt auto-renew on sub-77102 after this term."),
-    ("sp-p08", "indirect_request", "We are switching vendors — please make sure sub-77102 does not renew again."),
+    (
+        "sp-p06",
+        "mixed_past_future_language",
+        "I paid for this month already; just stop the next renewal from happening.",
+    ),
+    (
+        "sp-p07",
+        "distractor_details",
+        "My team uses Slack elsewhere, so halt auto-renew on sub-77102 after this term.",
+    ),
+    (
+        "sp-p08",
+        "indirect_request",
+        "We are switching vendors — please make sure sub-77102 does not renew again.",
+    ),
 )
 
 COMPENSATION_REQUESTS: tuple[tuple[str, str, str], ...] = (
     ("cp-p01", "explicit_intent", "Refund charge chg-33017 to my card as cash reimbursement."),
-    ("cp-p02", "implicit_intent", "I never approved chg-33017 — treat it as fraud and investigate."),
-    ("cp-p03", "negation", "Do not refund cash; add service credit to cust-48291 for the outage instead."),
+    (
+        "cp-p02",
+        "implicit_intent",
+        "I never approved chg-33017 — treat it as fraud and investigate.",
+    ),
+    (
+        "cp-p03",
+        "negation",
+        "Do not refund cash; add service credit to cust-48291 for the outage instead.",
+    ),
     ("cp-p04", "contrast", "I want cash back on chg-33017, not a future credit on the account."),
-    ("cp-p05", "temporal_language", "The unauthorized charge from Tuesday needs a formal dispute opened."),
-    ("cp-p06", "emotionally_charged_language", "Someone stole my card — dispute chg-33017 right now!"),
+    (
+        "cp-p05",
+        "temporal_language",
+        "The unauthorized charge from Tuesday needs a formal dispute opened.",
+    ),
+    (
+        "cp-p06",
+        "emotionally_charged_language",
+        "Someone stole my card — dispute chg-33017 right now!",
+    ),
 )
 
 
@@ -419,7 +477,10 @@ def _build_counterfactual_cases() -> list[CaseDraft]:
                     failure_cluster=TARGET_FAILURE_CLUSTER,
                     counterfactual_family="stop_paying",
                     counterfactual_pair_id=pair_id,
-                    notes="Counterfactual stop-paying wording; lifecycle tool depends on intent and state.",
+                    notes=(
+                        "Counterfactual stop-paying wording; lifecycle tool depends "
+                        "on intent and state."
+                    ),
                     is_target=True,
                 )
             )
@@ -508,7 +569,10 @@ def _build_baseline_cases() -> list[CaseDraft]:
             request="Verify me with security questions so we can proceed with account changes.",
             state=_base_state(identity_verified=False, customer_id="cust-88201"),
             expected_tool="verify_identity",
-            expected_args={"customer_id": "cust-88201", "verification_method": "security_questions"},
+            expected_args={
+                "customer_id": "cust-88201",
+                "verification_method": "security_questions",
+            },
             category="identity",
             policy_rule="verify_identity",
             challenge_category="multiple_plausible_tool_words",
@@ -538,7 +602,10 @@ def _build_baseline_cases() -> list[CaseDraft]:
         ),
         _baseline_case(
             case_id="sar-bl-006",
-            request="I mentioned a billing problem but you do not have the charge on file yet — find it.",
+            request=(
+                "I mentioned a billing problem but you do not have the charge on file "
+                "yet — find it."
+            ),
             state=_base_state(charge_id=None, charge_status=None),
             expected_tool="lookup_charge",
             expected_args={"customer_id": "cust-48291"},
@@ -582,7 +649,9 @@ def _build_baseline_cases() -> list[CaseDraft]:
         ),
         _baseline_case(
             case_id="sar-bl-010",
-            request="I want to pause but I am not sure which subscription is active for cust-48291.",
+            request=(
+                "I want to pause but I am not sure which subscription is active for cust-48291."
+            ),
             state=_base_state(subscription_id=None, subscription_status=None),
             expected_tool="lookup_subscription",
             expected_args={"customer_id": "cust-48291"},
@@ -594,7 +663,9 @@ def _build_baseline_cases() -> list[CaseDraft]:
         _baseline_case(
             case_id="sar-bl-011",
             request="Check renewal settings on my account before we change anything.",
-            state=_base_state(subscription_id=None, subscription_status=None, customer_id="cust-66120"),
+            state=_base_state(
+                subscription_id=None, subscription_status=None, customer_id="cust-66120"
+            ),
             expected_tool="lookup_subscription",
             expected_args={"customer_id": "cust-66120"},
             category="lookup",
@@ -616,7 +687,9 @@ def _build_baseline_cases() -> list[CaseDraft]:
         _baseline_case(
             case_id="sar-bl-013",
             request="Reverse pending charge chg-55001 before it settles.",
-            state=_base_state(charge_id="chg-55001", charge_status="pending", charge_authorized=True),
+            state=_base_state(
+                charge_id="chg-55001", charge_status="pending", charge_authorized=True
+            ),
             expected_tool="reverse_pending_charge",
             expected_args={"charge_id": "chg-55001"},
             category="billing",
@@ -627,7 +700,9 @@ def _build_baseline_cases() -> list[CaseDraft]:
         _baseline_case(
             case_id="sar-bl-014",
             request="That authorization on chg-22009 is still pending — void it now.",
-            state=_base_state(charge_id="chg-22009", charge_status="pending", charge_authorized=True),
+            state=_base_state(
+                charge_id="chg-22009", charge_status="pending", charge_authorized=True
+            ),
             expected_tool="reverse_pending_charge",
             expected_args={"charge_id": "chg-22009"},
             category="billing",
@@ -638,7 +713,9 @@ def _build_baseline_cases() -> list[CaseDraft]:
         _baseline_case(
             case_id="sar-bl-015",
             request="Stop chg-11880 from posting; it has not settled yet.",
-            state=_base_state(charge_id="chg-11880", charge_status="pending", charge_authorized=True),
+            state=_base_state(
+                charge_id="chg-11880", charge_status="pending", charge_authorized=True
+            ),
             expected_tool="reverse_pending_charge",
             expected_args={"charge_id": "chg-11880"},
             category="billing",
@@ -649,7 +726,9 @@ def _build_baseline_cases() -> list[CaseDraft]:
         _baseline_case(
             case_id="sar-bl-016",
             request="Undo the hold on chg-99012 while it is still pending.",
-            state=_base_state(charge_id="chg-99012", charge_status="pending", charge_authorized=True),
+            state=_base_state(
+                charge_id="chg-99012", charge_status="pending", charge_authorized=True
+            ),
             expected_tool="reverse_pending_charge",
             expected_args={"charge_id": "chg-99012"},
             category="billing",
@@ -660,7 +739,9 @@ def _build_baseline_cases() -> list[CaseDraft]:
         _baseline_case(
             case_id="sar-bl-017",
             request="Open a dispute on unauthorized settled charge chg-77115.",
-            state=_base_state(charge_id="chg-77115", charge_status="settled", charge_authorized=False),
+            state=_base_state(
+                charge_id="chg-77115", charge_status="settled", charge_authorized=False
+            ),
             expected_tool="open_charge_dispute",
             expected_args={"charge_id": "chg-77115", "reason_code": "unauthorized"},
             category="billing",
@@ -671,7 +752,9 @@ def _build_baseline_cases() -> list[CaseDraft]:
         _baseline_case(
             case_id="sar-bl-018",
             request="I did not make chg-44190 — investigate it as fraud.",
-            state=_base_state(charge_id="chg-44190", charge_status="settled", charge_authorized=False),
+            state=_base_state(
+                charge_id="chg-44190", charge_status="settled", charge_authorized=False
+            ),
             expected_tool="open_charge_dispute",
             expected_args={"charge_id": "chg-44190", "reason_code": "fraud"},
             category="billing",
@@ -682,7 +765,9 @@ def _build_baseline_cases() -> list[CaseDraft]:
         _baseline_case(
             case_id="sar-bl-019",
             request="Dispute chg-60221; the merchant name is unfamiliar and I never approved it.",
-            state=_base_state(charge_id="chg-60221", charge_status="settled", charge_authorized=False),
+            state=_base_state(
+                charge_id="chg-60221", charge_status="settled", charge_authorized=False
+            ),
             expected_tool="open_charge_dispute",
             expected_args={"charge_id": "chg-60221", "reason_code": "unauthorized"},
             category="billing",
@@ -693,7 +778,9 @@ def _build_baseline_cases() -> list[CaseDraft]:
         _baseline_case(
             case_id="sar-bl-020",
             request="This settled charge chg-31008 was not mine — start an investigation.",
-            state=_base_state(charge_id="chg-31008", charge_status="settled", charge_authorized=False),
+            state=_base_state(
+                charge_id="chg-31008", charge_status="settled", charge_authorized=False
+            ),
             expected_tool="open_charge_dispute",
             expected_args={"charge_id": "chg-31008", "reason_code": "unauthorized"},
             category="billing",
@@ -711,7 +798,10 @@ def _build_baseline_cases() -> list[CaseDraft]:
                 charge_age_days=52,
             ),
             expected_tool="escalate_billing_case",
-            expected_args={"customer_id": "cust-48291", "case_reason": "refund_outside_policy_window"},
+            expected_args={
+                "customer_id": "cust-48291",
+                "case_reason": "refund_outside_policy_window",
+            },
             category="billing",
             policy_rule="escalate_billing_case",
             challenge_category="explicit_intent",
@@ -722,7 +812,10 @@ def _build_baseline_cases() -> list[CaseDraft]:
             request="I need money back on a 45-day-old charge — route this to billing ops.",
             state=_base_state(charge_age_days=45, charge_status="settled", charge_authorized=True),
             expected_tool="escalate_billing_case",
-            expected_args={"customer_id": "cust-48291", "case_reason": "refund_outside_policy_window"},
+            expected_args={
+                "customer_id": "cust-48291",
+                "case_reason": "refund_outside_policy_window",
+            },
             category="billing",
             policy_rule="escalate_billing_case",
             challenge_category="temporal_language",
@@ -730,10 +823,15 @@ def _build_baseline_cases() -> list[CaseDraft]:
         ),
         _baseline_case(
             case_id="sar-bl-023",
-            request="Please escalate cust-48291's billing case; the refund window passed last month.",
+            request=(
+                "Please escalate cust-48291's billing case; the refund window passed last month."
+            ),
             state=_base_state(charge_age_days=38, charge_status="settled", charge_authorized=True),
             expected_tool="escalate_billing_case",
-            expected_args={"customer_id": "cust-48291", "case_reason": "refund_outside_policy_window"},
+            expected_args={
+                "customer_id": "cust-48291",
+                "case_reason": "refund_outside_policy_window",
+            },
             category="billing",
             policy_rule="escalate_billing_case",
             challenge_category="mixed_past_future_language",
@@ -744,7 +842,10 @@ def _build_baseline_cases() -> list[CaseDraft]:
             request="Specialist review needed for my refund on chg-33017 — it is over 30 days old.",
             state=_base_state(charge_age_days=41, charge_status="settled", charge_authorized=True),
             expected_tool="escalate_billing_case",
-            expected_args={"customer_id": "cust-48291", "case_reason": "refund_outside_policy_window"},
+            expected_args={
+                "customer_id": "cust-48291",
+                "case_reason": "refund_outside_policy_window",
+            },
             category="billing",
             policy_rule="escalate_billing_case",
             challenge_category="indirect_request",
@@ -959,7 +1060,9 @@ def _build_baseline_cases() -> list[CaseDraft]:
         _baseline_case(
             case_id="sar-bl-043",
             request="Switch sub-90200 from starter to pro now.",
-            state=_base_state(subscription_id="sub-90200", current_plan="starter", requested_plan="pro"),
+            state=_base_state(
+                subscription_id="sub-90200", current_plan="starter", requested_plan="pro"
+            ),
             expected_tool="change_subscription_plan",
             expected_args={
                 "subscription_id": "sub-90200",
@@ -1062,7 +1165,10 @@ def _build_baseline_cases() -> list[CaseDraft]:
             request="Cancel sub-33001 at period end after this invoice clears.",
             state=_base_state(subscription_id="sub-33001"),
             expected_tool="cancel_subscription",
-            expected_args={"subscription_id": "sub-33001", "effective_timing": "end_of_billing_cycle"},
+            expected_args={
+                "subscription_id": "sub-33001",
+                "effective_timing": "end_of_billing_cycle",
+            },
             category="lifecycle",
             policy_rule="cancel_subscription",
             challenge_category="mixed_past_future_language",
@@ -1082,7 +1188,9 @@ def _build_baseline_cases() -> list[CaseDraft]:
         _baseline_case(
             case_id="sar-bl-052",
             request="Investigate settled charge chg-99221 — customer says it is unauthorized.",
-            state=_base_state(charge_id="chg-99221", charge_status="settled", charge_authorized=False),
+            state=_base_state(
+                charge_id="chg-99221", charge_status="settled", charge_authorized=False
+            ),
             expected_tool="open_charge_dispute",
             expected_args={"charge_id": "chg-99221", "reason_code": "unauthorized"},
             category="billing",
@@ -1095,7 +1203,10 @@ def _build_baseline_cases() -> list[CaseDraft]:
             request="Escalate billing for cust-99102 — refund denied after 35 days.",
             state=_base_state(customer_id="cust-99102", charge_age_days=35),
             expected_tool="escalate_billing_case",
-            expected_args={"customer_id": "cust-99102", "case_reason": "refund_outside_policy_window"},
+            expected_args={
+                "customer_id": "cust-99102",
+                "case_reason": "refund_outside_policy_window",
+            },
             category="billing",
             policy_rule="escalate_billing_case",
             challenge_category="emotionally_charged_language",
@@ -1152,7 +1263,9 @@ def _build_baseline_cases() -> list[CaseDraft]:
         _baseline_case(
             case_id="sar-bl-058",
             request="Reverse pending authorization chg-77001 now.",
-            state=_base_state(charge_id="chg-77001", charge_status="pending", charge_authorized=True),
+            state=_base_state(
+                charge_id="chg-77001", charge_status="pending", charge_authorized=True
+            ),
             expected_tool="reverse_pending_charge",
             expected_args={"charge_id": "chg-77001"},
             category="billing",
@@ -1211,7 +1324,9 @@ def _build_baseline_cases() -> list[CaseDraft]:
         _baseline_case(
             case_id="sar-bl-063",
             request="Lookup subscription for cust-55030 — lifecycle change pending.",
-            state=_base_state(subscription_id=None, subscription_status=None, customer_id="cust-55030"),
+            state=_base_state(
+                subscription_id=None, subscription_status=None, customer_id="cust-55030"
+            ),
             expected_tool="lookup_subscription",
             expected_args={"customer_id": "cust-55030"},
             category="lookup",
@@ -1222,7 +1337,9 @@ def _build_baseline_cases() -> list[CaseDraft]:
         _baseline_case(
             case_id="sar-bl-064",
             request="Dispute fraudulent settled charge chg-66090.",
-            state=_base_state(charge_id="chg-66090", charge_status="settled", charge_authorized=False),
+            state=_base_state(
+                charge_id="chg-66090", charge_status="settled", charge_authorized=False
+            ),
             expected_tool="open_charge_dispute",
             expected_args={"charge_id": "chg-66090", "reason_code": "fraud"},
             category="billing",
@@ -1235,7 +1352,10 @@ def _build_baseline_cases() -> list[CaseDraft]:
             request="Escalate refund case for cust-77010 — charge is 48 days old.",
             state=_base_state(customer_id="cust-77010", charge_age_days=48),
             expected_tool="escalate_billing_case",
-            expected_args={"customer_id": "cust-77010", "case_reason": "refund_outside_policy_window"},
+            expected_args={
+                "customer_id": "cust-77010",
+                "case_reason": "refund_outside_policy_window",
+            },
             category="billing",
             policy_rule="escalate_billing_case",
             challenge_category="explicit_intent",
@@ -1292,7 +1412,9 @@ def _build_baseline_cases() -> list[CaseDraft]:
         _baseline_case(
             case_id="sar-bl-070",
             request="Void pending charge chg-33090 before settlement.",
-            state=_base_state(charge_id="chg-33090", charge_status="pending", charge_authorized=True),
+            state=_base_state(
+                charge_id="chg-33090", charge_status="pending", charge_authorized=True
+            ),
             expected_tool="reverse_pending_charge",
             expected_args={"charge_id": "chg-33090"},
             category="billing",
@@ -1362,7 +1484,9 @@ def _build_baseline_cases() -> list[CaseDraft]:
         _baseline_case(
             case_id="sar-bl-076",
             request="Customer denies charge chg-77044 — open dispute.",
-            state=_base_state(charge_id="chg-77044", charge_status="settled", charge_authorized=False),
+            state=_base_state(
+                charge_id="chg-77044", charge_status="settled", charge_authorized=False
+            ),
             expected_tool="open_charge_dispute",
             expected_args={"charge_id": "chg-77044", "reason_code": "unauthorized"},
             category="billing",
@@ -1375,7 +1499,10 @@ def _build_baseline_cases() -> list[CaseDraft]:
             request="Billing specialist needed for cust-44010 refund over 30 days.",
             state=_base_state(customer_id="cust-44010", charge_age_days=33),
             expected_tool="escalate_billing_case",
-            expected_args={"customer_id": "cust-44010", "case_reason": "refund_outside_policy_window"},
+            expected_args={
+                "customer_id": "cust-44010",
+                "case_reason": "refund_outside_policy_window",
+            },
             category="billing",
             policy_rule="escalate_billing_case",
             challenge_category="indirect_request",
@@ -1432,7 +1559,9 @@ def _build_baseline_cases() -> list[CaseDraft]:
         _baseline_case(
             case_id="sar-bl-082",
             request="Cancel pending auth on chg-88044 immediately.",
-            state=_base_state(charge_id="chg-88044", charge_status="pending", charge_authorized=True),
+            state=_base_state(
+                charge_id="chg-88044", charge_status="pending", charge_authorized=True
+            ),
             expected_tool="reverse_pending_charge",
             expected_args={"charge_id": "chg-88044"},
             category="billing",
@@ -1502,7 +1631,9 @@ def _build_baseline_cases() -> list[CaseDraft]:
         _baseline_case(
             case_id="sar-bl-088",
             request="Dispute chg-11050 — card was compromised.",
-            state=_base_state(charge_id="chg-11050", charge_status="settled", charge_authorized=False),
+            state=_base_state(
+                charge_id="chg-11050", charge_status="settled", charge_authorized=False
+            ),
             expected_tool="open_charge_dispute",
             expected_args={"charge_id": "chg-11050", "reason_code": "fraud"},
             category="billing",
@@ -1515,7 +1646,10 @@ def _build_baseline_cases() -> list[CaseDraft]:
             request="Escalate cust-77050 billing case — refund request day 42.",
             state=_base_state(customer_id="cust-77050", charge_age_days=42),
             expected_tool="escalate_billing_case",
-            expected_args={"customer_id": "cust-77050", "case_reason": "refund_outside_policy_window"},
+            expected_args={
+                "customer_id": "cust-77050",
+                "case_reason": "refund_outside_policy_window",
+            },
             category="billing",
             policy_rule="escalate_billing_case",
             challenge_category="distractor_details",
@@ -1552,7 +1686,10 @@ def _build_baseline_cases() -> list[CaseDraft]:
             request="Run security-question verification for cust-11050.",
             state=_base_state(identity_verified=False, customer_id="cust-11050"),
             expected_tool="verify_identity",
-            expected_args={"customer_id": "cust-11050", "verification_method": "security_questions"},
+            expected_args={
+                "customer_id": "cust-11050",
+                "verification_method": "security_questions",
+            },
             category="identity",
             policy_rule="verify_identity",
             challenge_category="implicit_intent",
@@ -1572,7 +1709,9 @@ def _build_baseline_cases() -> list[CaseDraft]:
         _baseline_case(
             case_id="sar-bl-094",
             request="Reverse unsettled charge chg-33050 now.",
-            state=_base_state(charge_id="chg-33050", charge_status="pending", charge_authorized=True),
+            state=_base_state(
+                charge_id="chg-33050", charge_status="pending", charge_authorized=True
+            ),
             expected_tool="reverse_pending_charge",
             expected_args={"charge_id": "chg-33050"},
             category="billing",
@@ -1631,7 +1770,9 @@ def _build_baseline_cases() -> list[CaseDraft]:
         _baseline_case(
             case_id="sar-bl-099",
             request="Lookup subscription details for cust-88060.",
-            state=_base_state(subscription_id=None, subscription_status=None, customer_id="cust-88060"),
+            state=_base_state(
+                subscription_id=None, subscription_status=None, customer_id="cust-88060"
+            ),
             expected_tool="lookup_subscription",
             expected_args={"customer_id": "cust-88060"},
             category="lookup",
@@ -1642,7 +1783,9 @@ def _build_baseline_cases() -> list[CaseDraft]:
         _baseline_case(
             case_id="sar-bl-100",
             request="File fraud dispute on settled charge chg-99060.",
-            state=_base_state(charge_id="chg-99060", charge_status="settled", charge_authorized=False),
+            state=_base_state(
+                charge_id="chg-99060", charge_status="settled", charge_authorized=False
+            ),
             expected_tool="open_charge_dispute",
             expected_args={"charge_id": "chg-99060", "reason_code": "fraud"},
             category="billing",
@@ -1699,12 +1842,17 @@ def _assign_target_splits(target_cases: list[CaseDraft]) -> dict[str, list[CaseD
     return split_cases
 
 
-def _assign_splits(target_cases: list[CaseDraft], baseline_cases: list[CaseDraft]) -> dict[str, list[CaseDraft]]:
+def _assign_splits(
+    target_cases: list[CaseDraft], baseline_cases: list[CaseDraft]
+) -> dict[str, list[CaseDraft]]:
     if len(target_cases) != sum(TARGET_SPLIT_COUNTS.values()):
-        raise ValueError(f"expected {sum(TARGET_SPLIT_COUNTS.values())} target cases, got {len(target_cases)}")
+        raise ValueError(
+            f"expected {sum(TARGET_SPLIT_COUNTS.values())} target cases, got {len(target_cases)}"
+        )
     if len(baseline_cases) != sum(BASELINE_SPLIT_COUNTS.values()):
         raise ValueError(
-            f"expected {sum(BASELINE_SPLIT_COUNTS.values())} baseline cases, got {len(baseline_cases)}"
+            f"expected {sum(BASELINE_SPLIT_COUNTS.values())} baseline cases, "
+            f"got {len(baseline_cases)}"
         )
 
     split_cases: dict[str, list[CaseDraft]] = {name: [] for name in SPLIT_COUNTS}
@@ -1874,12 +2022,14 @@ def _policy_precedence_md() -> str:
             "",
             "## Counterfactual families",
             "",
-            "- **money_back**: pending → reverse_pending_charge; settled authorized → issue_refund; "
+            "- **money_back**: pending → reverse_pending_charge; settled authorized → "
+            "issue_refund; "
             "unauthorized → open_charge_dispute; missing charge → lookup_charge; unverified → "
             "verify_identity; age > 30 days → escalate_billing_case.",
             "- **stop_paying**: keep access → disable_auto_renew; end now → cancel_subscription; "
             "temporary break → pause_subscription; unknown subscription → lookup_subscription.",
-            "- **compensation**: cash reimbursement → issue_refund; unauthorized → open_charge_dispute; "
+            "- **compensation**: cash reimbursement → issue_refund; unauthorized → "
+            "open_charge_dispute; "
             "service credit → apply_account_credit.",
             "",
         ]
@@ -1920,7 +2070,10 @@ def _scenario_manifest() -> dict[str, Any]:
             "escalate_billing_case": {"expected_tool": "escalate_billing_case"},
             "issue_refund": {"expected_tool": "issue_refund", "failure_cluster": None},
             "disable_auto_renew": {"expected_tool": "disable_auto_renew", "failure_cluster": None},
-            "cancel_subscription": {"expected_tool": "cancel_subscription", "failure_cluster": None},
+            "cancel_subscription": {
+                "expected_tool": "cancel_subscription",
+                "failure_cluster": None,
+            },
             "pause_subscription": {"expected_tool": "pause_subscription", "failure_cluster": None},
             "change_subscription_plan": {"expected_tool": "change_subscription_plan"},
             "apply_account_credit": {"expected_tool": "apply_account_credit"},
@@ -1951,7 +2104,9 @@ def _composition_stats(split_cases: dict[str, list[CaseDraft]]) -> dict[str, Any
     for split, cases in split_cases.items():
         per_split_slices[split] = {}
         for case in cases:
-            challenge_counts[case.challenge_category] = challenge_counts.get(case.challenge_category, 0) + 1
+            challenge_counts[case.challenge_category] = (
+                challenge_counts.get(case.challenge_category, 0) + 1
+            )
             policy_counts[case.policy_rule] = policy_counts.get(case.policy_rule, 0) + 1
             slice_name = (
                 "target_state_counterfactual"
